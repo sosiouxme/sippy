@@ -988,7 +988,7 @@ func (s *Server) jsonJobRunRiskAnalysis(w http.ResponseWriter, req *http.Request
 		logger = logger.WithField("jobRunID", jobRunID)
 
 		// lookup prowjob and run count
-		jobRun, jobRunTestCount, err = api.FetchJobRun(s.db, jobRunID, logger)
+		jobRun, jobRunTestCount, err = api.FetchJobRun(s.db, jobRunID, false, logger)
 
 		if err != nil {
 			failureResponse(w, http.StatusBadRequest, err.Error())
@@ -1048,7 +1048,7 @@ func (s *Server) jsonJobRunRiskAnalysis(w http.ResponseWriter, req *http.Request
 	}
 
 	logger.Infof("job run = %+v", *jobRun)
-	result, err := api.JobRunRiskAnalysis(s.db, jobRun, jobRunTestCount, logger.WithField("func", "JobRunRiskAnalysis"))
+	result, err := api.JobRunRiskAnalysis(s.db, jobRun, jobRunTestCount, logger)
 	if err != nil {
 		failureResponse(w, http.StatusBadRequest, err.Error())
 		return

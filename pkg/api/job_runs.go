@@ -11,6 +11,7 @@ import (
 
 	"github.com/hashicorp/go-version"
 	apitype "github.com/openshift/sippy/pkg/apis/api"
+	sippyprocessingv1 "github.com/openshift/sippy/pkg/apis/sippyprocessing/v1"
 	"github.com/openshift/sippy/pkg/db"
 	"github.com/openshift/sippy/pkg/db/models"
 	"github.com/openshift/sippy/pkg/db/query"
@@ -100,23 +101,34 @@ func JobsRunsReportFromDB(dbc *db.DB, filterOpts *filter.FilterOptions, release 
 	}, res.Error
 }
 
-func FetchJobRun(dbc *db.DB, jobRunID int64, logger *log.Entry) (*models.ProwJobRun, int, error) {
-
+// FetchJobRun returns a single job run loaded from postgres and populated with the ProwJob and test results.
+// If allTests is true, all tests are loaded, otherwise only failed tests are loaded.
+func FetchJobRun(dbc *db.DB, jobRunID int64, allTests bool, logger *log.Entry) (*models.ProwJobRun, int, error) {
 	jobRun := &models.ProwJobRun{}
-	// Load the ProwJobRun, ProwJob, and failed tests:
+
+	// Load the ProwJobRun, ProwJob, and (failed|all) tests:
 	// TODO: we may want to expand to analyzing flakes here in the future
-	res := dbc.DB.Joins("ProwJob").
-		Preload("Tests", "status = 12").
-		Preload("Tests.Test").
-		Preload("Tests.Suite").First(jobRun, jobRunID)
+	q := dbc.DB.Joins("ProwJob")
+	if allTests {
+		q = q.Preload("Tests")
+	} else { // load only failures
+		q = q.Preload("Tests", "status = ?", sippyprocessingv1.TestStatusFailure)
+	}
+	res := q.Preload("Tests.Test").
+		Preload("Tests.Suite").
+		First(jobRun, jobRunID)
 	if res.Error != nil {
 		return nil, -1, res.Error
 	}
 
-	jobRunTestCount, err := query.JobRunTestCount(dbc, jobRunID)
-	if err != nil {
-		logger.WithError(err).Error("Error getting job run test count")
-		jobRunTestCount = -1
+	jobRunTestCount := len(jobRun.Tests)
+	if !allTests {
+		var err error
+		jobRunTestCount, err = query.JobRunTestCount(dbc, jobRunID)
+		if err != nil {
+			logger.WithError(err).Error("Error getting job run test count")
+			jobRunTestCount = -1
+		}
 	}
 
 	return jobRun, jobRunTestCount, nil
