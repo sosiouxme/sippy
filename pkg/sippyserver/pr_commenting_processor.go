@@ -121,7 +121,7 @@ type RiskAnalysisSummary struct {
 	URL              string
 	RiskLevel        api.RiskLevel
 	OverallReasons   []string
-	TestRiskAnalysis []api.ProwJobRunTestRiskAnalysis
+	TestRiskAnalysis []api.TestRiskAnalysis
 }
 
 type RiskAnalysisEntryList []RiskAnalysisEntry
@@ -835,7 +835,7 @@ func buildRiskSummary(riskAnalysis, priorRiskAnalysis *api.ProwJobRunRiskAnalysi
 	return riskSummary
 }
 
-func isTestFiltered(test api.ProwJobRunTestRiskAnalysis, priorRiskAnalysis *api.ProwJobRunRiskAnalysis) bool {
+func isTestFiltered(test api.TestRiskAnalysis, priorRiskAnalysis *api.ProwJobRunRiskAnalysis) bool {
 	// TODO: Observe how restrictive this is
 	// Many PRs don't appear to have multiple runs
 	// Those that do don't have the same failures (because the failures are flakes and not regressions?)

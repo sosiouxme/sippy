@@ -437,7 +437,7 @@ func runJobRunAnalysis(jobRun *models.ProwJobRun, compareRelease string, jobRunT
 		ProwJobName:    jobRun.ProwJob.Name,
 		Release:        jobRun.ProwJob.Release,
 		CompareRelease: compareRelease,
-		Tests:          []apitype.ProwJobRunTestRiskAnalysis{},
+		Tests:          []apitype.TestRiskAnalysis{},
 		OverallRisk: apitype.JobFailureRisk{
 			Level:                  apitype.FailureRiskLevelNone,
 			Reasons:                []string{},
@@ -503,7 +503,7 @@ func runJobRunAnalysis(jobRun *models.ProwJobRun, compareRelease string, jobRunT
 
 // For a failed test, query its pass rates by NURPs, find a matching variant combo, and
 // see how often we've passed in the last week.
-func runTestRunAnalysis(failedTest models.ProwJobRunTest, jobRun *models.ProwJobRun, compareRelease string, logger *log.Entry, testResultsJobNameFunc testResultsByJobNameFunc, jobNames []string, testResultsVariantsFunc testResultsByVariantsFunc, neverStableJob bool) (apitype.ProwJobRunTestRiskAnalysis, error) {
+func runTestRunAnalysis(failedTest models.ProwJobRunTest, jobRun *models.ProwJobRun, compareRelease string, logger *log.Entry, testResultsJobNameFunc testResultsByJobNameFunc, jobNames []string, testResultsVariantsFunc testResultsByVariantsFunc, neverStableJob bool) (apitype.TestRiskAnalysis, error) {
 
 	logger.Debug("failed test")
 
@@ -543,10 +543,10 @@ func runTestRunAnalysis(failedTest models.ProwJobRunTest, jobRun *models.ProwJob
 	if errJobNames != nil && errVariants != nil {
 		logger.WithError(errVariants).Error("Failed test results by variants")
 		logger.WithError(errJobNames).Error("Failed test results job names")
-		return apitype.ProwJobRunTestRiskAnalysis{}, errJobNames
+		return apitype.TestRiskAnalysis{}, errJobNames
 	}
 
-	analysis := apitype.ProwJobRunTestRiskAnalysis{
+	analysis := apitype.TestRiskAnalysis{
 		Name:     failedTest.Test.Name,
 		TestID:   failedTest.Test.ID,
 		OpenBugs: failedTest.Test.Bugs,

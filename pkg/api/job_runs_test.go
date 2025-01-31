@@ -299,7 +299,7 @@ func buildFakeProwJobRun() *models.ProwJobRun {
 	return fakeProwJobRun
 }
 
-func getTestRisk(result apitype.ProwJobRunRiskAnalysis, testName string) *apitype.ProwJobRunTestRiskAnalysis {
+func getTestRisk(result apitype.ProwJobRunRiskAnalysis, testName string) *apitype.TestRiskAnalysis {
 	for _, ta := range result.Tests {
 		if ta.Name == testName {
 			return &ta
