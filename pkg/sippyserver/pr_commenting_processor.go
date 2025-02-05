@@ -72,6 +72,7 @@ func NewWorkProcessor(dbc *db.DB, gcsBucket *storage.BucketHandle, commentAnalys
 		commentUpdaterRate:     commentUpdaterRate,
 		commentAnalysisWorkers: commentAnalysisWorkers,
 		dryRunOnly:             dryRunOnly,
+		newTestFilter:          &BQNewTestFilter{},
 	}
 	return wp
 }
@@ -84,6 +85,7 @@ type WorkProcessor struct {
 	gcsBucket              *storage.BucketHandle
 	ghCommenter            *commenter.GitHubCommenter
 	dryRunOnly             bool
+	newTestFilter          NewTestFilter
 }
 
 type PendingComment struct {
@@ -108,6 +110,7 @@ type AnalysisWorker struct {
 	riskAnalysisLocator *regexp.Regexp
 	pendingAnalysis     chan models.PullRequestComment
 	pendingComments     chan PendingComment
+	newTestsWorker      *NewTestsWorker
 }
 
 type RiskAnalysisSummary struct {
@@ -151,7 +154,17 @@ func (wp *WorkProcessor) Run(ctx context.Context) {
 	defer close(pendingWork)
 
 	for i := 0; i < wp.commentAnalysisWorkers; i++ {
-		analysisWorker := AnalysisWorker{riskAnalysisLocator: gcs.GetDefaultRiskAnalysisSummaryFile(), dbc: wp.dbc, gcsBucket: wp.gcsBucket, pendingAnalysis: pendingWork, pendingComments: pendingComments}
+		analysisWorker := AnalysisWorker{
+			riskAnalysisLocator: gcs.GetDefaultRiskAnalysisSummaryFile(),
+			dbc:                 wp.dbc,
+			gcsBucket:           wp.gcsBucket,
+			pendingAnalysis:     pendingWork,
+			pendingComments:     pendingComments,
+			newTestsWorker: &NewTestsWorker{
+				dbc:           wp.dbc,
+				newTestFilter: wp.newTestFilter,
+			},
+		}
 		go analysisWorker.Run()
 	}
 
@@ -443,15 +456,16 @@ func (aw *AnalysisWorker) processPendingPrComment(pendingPrComment models.PullRe
 	// having determined the PR is ready, scan all the runs for each job so we can find the latest
 	for idx, jobInfo := range completedJobs {
 		completedJobs[idx].prowJobRuns = aw.buildProwJobRuns(logger.WithField("job", jobInfo.name), jobInfo.bucketPrefix)
+		completedJobs[idx].prShaSum = pendingPrComment.SHA // so we can check whether runs are against the expected PR commit
 	}
 
 	riskAnalyses := aw.buildPRJobRiskAnalysis(logger, completedJobs)
 	slices.SortFunc(riskAnalyses, func(a, b RiskAnalysisSummary) int {
 		return strings.Compare(a.Name, b.Name)
 	})
-	// newTestAnalysis := aw.buildNewTestAnalysis(logger, completedJobs)
+	newTestRisks := aw.newTestsWorker.analyzeRisks(logger, completedJobs)
 	pendingComment := PendingComment{
-		comment:     buildComment(riskAnalyses, pendingPrComment.SHA),
+		comment:     buildComment(riskAnalyses, newTestRisks, pendingPrComment.SHA),
 		sha:         pendingPrComment.SHA,
 		org:         pendingPrComment.Org,
 		repo:        pendingPrComment.Repo,
@@ -467,7 +481,7 @@ func (aw *AnalysisWorker) processPendingPrComment(pendingPrComment models.PullRe
 	log.Debugf("Comment added to pendingComments: %s/%s/%s", pendingComment.org, pendingComment.repo, pendingComment.sha)
 }
 
-func buildComment(sortedAnalyses []RiskAnalysisSummary, sha string) string {
+func buildComment(sortedAnalyses []RiskAnalysisSummary, risks []JobNewTestRisks, sha string) string {
 	var sb strings.Builder
 	if len(sortedAnalyses) == 0 {
 		return ""
@@ -548,6 +562,7 @@ func buildComment(sortedAnalyses []RiskAnalysisSummary, sha string) string {
 
 type prJobInfo struct {
 	name          string
+	prShaSum      string         // sha of the PR at the time it was loaded
 	bucketPrefix  string         // where the job is found in the GCS bucket
 	latestRunId   string         // ID of the latest run
 	latestRunPath string         // path to the latest run in the GCS bucket
@@ -629,6 +644,13 @@ func (aw *AnalysisWorker) buildPRJobRiskAnalysis(logger *log.Entry, jobs []prJob
 		latest := jobInfo.prowJobRuns[0]
 		previous := jobInfo.prowJobRuns[1]
 
+		if latest.Spec.Refs.Pulls[0].SHA != jobInfo.prShaSum {
+			logger.Infof(
+				"Skipping risk analysis for job %s as latest completed run %s is not against the PR's shasum %s",
+				jobInfo.name, latest.Status.BuildID, jobInfo.prShaSum)
+			continue
+		}
+
 		_, priorRiskAnalysis := aw.getRiskSummary(
 			previous.Status.BuildID,
 			fmt.Sprintf("%s%s/", jobInfo.bucketPrefix, previous.Status.BuildID),
@@ -662,102 +684,6 @@ func (aw *AnalysisWorker) buildPRJobRiskAnalysis(logger *log.Entry, jobs []prJob
 
 	return riskAnalysisSummaries
 }
-
-/*
-// buildNewTestAnalysis walks the runs for a PR job to sort out which to analyze;
-// if the map is empty, it indicates that either all tests passed or any analysis for failures was unknown.
-func (aw *AnalysisWorker) buildNewTestAnalysis (logger *log.Entry, jobs []prJobInfo) api.NewTestRiskAnalysis {
-	analysisByJobs := map[string]RiskAnalysisSummary{}
-	for idx, jobInfo := range jobs {
-		// we don't only want the latest run, we want to scan all the runs
-		// so we can find the most recent run prior to latest.
-		// we build the risk analysis for latest but only include failed tests that
-		// also occurred in latest-1.
-		jobs[idx].prowJobRuns = aw.buildProwJobRuns(logger.WithField("job", jobInfo.name), jobInfo.bucketPrefix)
-	}
-
-		// we don't report risk on jobs without 2 or more runs.
-		// this is so we can compare failed tests against latest and latest-1,
-		// only returning analysis on tests that have failed in both
-		if len(prowJobMap) < 2 {
-			continue
-		}
-
-		var latestProwJob, priorProwJob *prow.ProwJob
-		var priorTime time.Time
-		var prowLink string
-
-		for timestamp, job := range prowJobMap {
-			pjCopy := job // don't reference a changing loop var, reference an ephemeral copy
-
-			// if we have the latestProwJob mark it
-			if job.Status.BuildID == jobInfo.latestRunId {
-				latestProwJob = &pjCopy
-				prowLink = latestProwJob.Status.URL
-			} else {
-				if latestProwJob != nil {
-					if latestProwJob.Status.CompletionTime.Before(timestamp) {
-						// shouldn't be the case
-						continue
-					}
-				}
-				if priorTime.Before(timestamp) {
-					priorTime = timestamp
-					priorProwJob = &pjCopy
-				}
-			}
-		}
-
-		// we didn't find the latest so log a warning and continue on
-		if latestProwJob == nil {
-			logger.Warnf("Failed to find latest prowjob expected at %s", jobInfo.latestRunPath)
-			continue
-		}
-
-		// at times it appears that we add a comment that reflects the prior job
-		// and then update again shortly after
-		mostRecentStartTime := time.Time{}
-		if latestProwJob.Status.StartTime.Before(mostRecentStartTime) {
-			logger.Warnf("Latest prowjob start time: %s is before mostRecentStartTime: %s", latestProwJob.Status.StartTime.Format(time.RFC3339), mostRecentStartTime.Format(time.RFC3339))
-			continue
-		}
-
-		// job count is > 1, but we didn't find a valid prior job
-		// Completion time is validated in buildProwJobRuns
-		if priorProwJob == nil || latestProwJob.Status.CompletionTime.Before(*priorProwJob.Status.CompletionTime) {
-			logger.Warnf("Invalid prior prowjob for: %s", jobInfo.latestRunPath)
-			continue
-		}
-
-		priorRunID := priorProwJob.Status.BuildID
-		// lastly sanity check that our priorRun && latest are not the same
-		if jobInfo.latestRunId == priorRunID {
-			logger.Warnf("Prior prowjob: %s and latest: %s are the same", priorRunID, jobInfo.latestRunId)
-			continue
-		}
-
-		_, priorRiskAnalysis := aw.getRiskSummary(priorRunID, fmt.Sprintf("%s%s/", jobInfo.bucketPrefix, priorRunID), nil)
-
-		// if the priorRiskAnalysis is nil then skip since we require consecutive test failures
-		// this can happen if the job hasn't been imported yet
-		// and the prior risk analysis artifact failed to be created in gcs
-		if priorRiskAnalysis == nil {
-			logger.Warnf("Failed to determine prior risk analysis for prowjob: %s", priorRunID)
-			continue
-		}
-
-		riskSummary, _ := aw.getRiskSummary(jobInfo.latestRunId, jobInfo.latestRunPath, priorRiskAnalysis)
-
-		// don't include none or unknown in our report
-		if riskSummary.OverallRisk.Level != api.FailureRiskLevelNone && riskSummary.OverallRisk.Level != api.FailureRiskLevelUnknown {
-			riskAnalysisSummary := RiskAnalysisSummary{Name: jobInfo.name, URL: prowLink, RiskLevel: riskSummary.OverallRisk.Level, OverallReasons: riskSummary.OverallRisk.Reasons, TestRiskAnalysis: riskSummary.Tests}
-			analysisByJobs[jobInfo.name] = riskAnalysisSummary
-		}
-	}
-
-	return analysisByJobs
-}
-*/
 
 // buildProwJobRuns Walks the GCS path for this job to find its job runs,
 // returning a list of completed runs sorted by decreasing completion time

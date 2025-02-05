@@ -3,6 +3,7 @@ package api
 
 import (
 	"fmt"
+	"github.com/openshift/sippy/pkg/sippyserver"
 	"strconv"
 	"time"
 
@@ -751,7 +752,7 @@ type ProwJobRunRiskAnalysis struct {
 	Release        string
 	CompareRelease string
 	Tests          []TestRiskAnalysis
-	NewTests       []NewTestRiskAnalysis
+	NewTests       []sippyserver.NewTest
 	OverallRisk    JobFailureRisk
 	OpenBugs       []models.Bug
 }
@@ -761,11 +762,6 @@ type TestRiskAnalysis struct {
 	TestID   uint
 	Risk     TestFailureRisk
 	OpenBugs []models.Bug
-}
-
-type NewTestRiskAnalysis struct {
-	Name   string
-	TestID uint
 }
 
 type JobFailureRisk struct {
@@ -788,6 +784,7 @@ type TestFailureRisk struct {
 type RiskSummary struct {
 	OverallRisk JobFailureRisk
 	Tests       []TestRiskAnalysis
+	// NewTests    []JobNewTestRisks
 }
 
 type RiskLevel struct {
