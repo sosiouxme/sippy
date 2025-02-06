@@ -420,7 +420,7 @@ func (aw *AnalysisWorker) Run() {
 	for i := range aw.pendingAnalysis {
 
 		if i.CommentType == int(models.CommentTypeRiskAnalysis) {
-			aw.processRiskAnalysisComment(i)
+			aw.processPendingPrComment(i)
 		} else {
 			log.Warningf("Unsupported comment type: %d for %s/%s/%d/%s", i.CommentType, i.Org, i.Repo, i.PullNumber, i.SHA)
 		}
@@ -428,12 +428,12 @@ func (aw *AnalysisWorker) Run() {
 	}
 }
 
-func (aw *AnalysisWorker) processRiskAnalysisComment(prPendingComment models.PullRequestComment) {
+func (aw *AnalysisWorker) processPendingPrComment(pendingPrComment models.PullRequestComment) {
 
-	logger := log.WithField("org", prPendingComment.Org).
-		WithField("repo", prPendingComment.Repo).
-		WithField("Number", prPendingComment.PullNumber).
-		WithField("sha", prPendingComment.SHA)
+	logger := log.WithField("org", pendingPrComment.Org).
+		WithField("repo", pendingPrComment.Repo).
+		WithField("Number", pendingPrComment.PullNumber).
+		WithField("sha", pendingPrComment.SHA)
 
 	start := time.Now()
 	logger.Debug("Processing item")
@@ -441,34 +441,26 @@ func (aw *AnalysisWorker) processRiskAnalysisComment(prPendingComment models.Pul
 	// we will likely pull in PRs hours before the jobs finish,
 	// so there may be many cycles before a PR is ready for commenting.
 	// check to see if all jobs have completed before doing the more intensive query / gcs locate for analysis.
-	allCompleted, _ := aw.buildPRJobRiskAnalysis(logger, prPendingComment.ProwJobRoot, true)
-	if !allCompleted {
+	completedJobs := aw.getPrJobsIfFinished(logger, pendingPrComment.ProwJobRoot)
+	if completedJobs == nil {
 		logger.Debug("Jobs are still active")
 
+		// record how long it took to decide the jobs are still active
 		t := float64(time.Now().UnixMilli() - start.UnixMilli())
-		checkCommentReady.WithLabelValues(prPendingComment.Org, prPendingComment.Repo).Observe(t)
+		checkCommentReady.WithLabelValues(pendingPrComment.Org, pendingPrComment.Repo).Observe(t)
 		return
 	}
 
 	defer func() {
+		// record how long it took to determine what the comment should be
 		t := float64(time.Now().UnixMilli() - start.UnixMilli())
-		buildCommentMetric.WithLabelValues(prPendingComment.Org, prPendingComment.Repo).Observe(t)
+		buildCommentMetric.WithLabelValues(pendingPrComment.Org, pendingPrComment.Repo).Observe(t)
 	}()
-
-	// do the full pass if all are finished (will still re-validate that all are completed - could have retries)
-	allCompleted, analysis := aw.buildPRJobRiskAnalysis(logger, prPendingComment.ProwJobRoot, false)
-	if !allCompleted {
-		logger.Debug("Jobs are still active")
-		return
-	}
-	if analysis == nil {
-		logger.Errorf("Invalid Risk Analysis result")
-		return
-	}
 
 	// when the comment processor sees an empty comment it will
 	// not create a comment but will delete the comment record
 	comment := ""
+	analysis := aw.buildPRJobRiskAnalysis(logger, completedJobs)
 	if len(analysis) > 0 {
 
 		sortedAnalysis := make(RiskAnalysisEntryList, 0)
@@ -477,16 +469,16 @@ func (aw *AnalysisWorker) processRiskAnalysisComment(prPendingComment models.Pul
 		}
 		sort.Sort(sortedAnalysis)
 
-		comment = buildComment(sortedAnalysis, prPendingComment.SHA)
+		comment = buildComment(sortedAnalysis, pendingPrComment.SHA)
 	}
 
 	pendingComment := PendingComment{
 		comment:     comment,
-		sha:         prPendingComment.SHA,
-		org:         prPendingComment.Org,
-		repo:        prPendingComment.Repo,
-		number:      prPendingComment.PullNumber,
-		commentType: prPendingComment.CommentType,
+		sha:         pendingPrComment.SHA,
+		org:         pendingPrComment.Org,
+		repo:        pendingPrComment.Repo,
+		number:      pendingPrComment.PullNumber,
+		commentType: pendingPrComment.CommentType,
 	}
 
 	// will block if the buffer is full
@@ -573,11 +565,17 @@ func buildComment(sortedAnalysis RiskAnalysisEntryList, sha string) string {
 	return sb.String()
 }
 
-// buildPRJobRiskAnalysis walks the GCS path for this PR to find the most recent job runs;
-// returns false if any have not finished.
-// otherwise, returns a map of test names to each test's overall RiskAnalysis.
+type prJobInfo struct {
+	name          string
+	bucketPrefix  string // where the job is found in the GCS bucket
+	latestRunId   string // ID of the latest run
+	latestRunPath string // path to the latest run in the GCS bucket
+}
+
+// getPrJobsIfFinished walks the GCS path for this PR to find the most recent run of each PR job;
+// returns nil if any have not finished. otherwise, returns a list of jobs found.
 // if the map is empty, it indicates that either all tests passed or any analysis for failures was unknown.
-func (aw *AnalysisWorker) buildPRJobRiskAnalysis(logger *log.Entry, prRoot string, dryrun bool) (bool, map[string]RiskAnalysisSummary) {
+func (aw *AnalysisWorker) getPrJobsIfFinished(logger *log.Entry, prRoot string) (jobs []prJobInfo) {
 
 	// get the list of objects one level down from our root. the hierarchy looks like pr-logs/pull/org_repo/number/
 	it := aw.gcsBucket.Objects(context.Background(), &storage.Query{
@@ -585,8 +583,7 @@ func (aw *AnalysisWorker) buildPRJobRiskAnalysis(logger *log.Entry, prRoot strin
 		Delimiter: "/",
 	})
 
-	analysisByJobs := make(map[string]RiskAnalysisSummary)
-	jobRun := gcs.NewGCSJobRun(aw.gcsBucket, "")
+	gcsJobRun := gcs.NewGCSJobRun(aw.gcsBucket, "") // dummy instance for looking up bucket content
 
 	for {
 		attrs, err := it.Next()
@@ -594,7 +591,7 @@ func (aw *AnalysisWorker) buildPRJobRiskAnalysis(logger *log.Entry, prRoot strin
 			break
 		}
 		if err != nil {
-			logger.WithError(err).Warningf("gcs bucket iterator returned error")
+			logger.WithError(err).Warningf("gcs bucket iterator failed looking for PR jobs")
 			continue
 		}
 		if attrs == nil || len(attrs.Name) > 0 {
@@ -608,36 +605,43 @@ func (aw *AnalysisWorker) buildPRJobRiskAnalysis(logger *log.Entry, prRoot strin
 							    .  finished.json
 							    .  build-log.txt
 		*/
-		// record last segment as name; final split is "" so get penultimate
 		jobPath := strings.Split(attrs.Prefix, "/")
-		jobName := jobPath[len(jobPath)-2]
+		job := prJobInfo{
+			bucketPrefix: attrs.Prefix,
+			name:         jobPath[len(jobPath)-2], // record last segment as name; final split is "" so get penultimate
+		}
 
 		// we have to get the job run id from latest-build.txt and then check for finished.json in that path
-		bytes, err := jobRun.GetContent(context.TODO(), fmt.Sprintf("%s%s", attrs.Prefix, "latest-build.txt"))
+		bytes, err := gcsJobRun.GetContent(context.TODO(), fmt.Sprintf("%s%s", job.bucketPrefix, "latest-build.txt"))
 		if err != nil {
-			logger.WithError(err).Errorf("Failed to get latest build info for: %s", attrs.Prefix)
-			return false, nil // latest job result not recorded, consider testing incomplete for the PR
+			logger.WithError(err).Errorf("Failed to get latest build info for: %s", job.bucketPrefix)
+			return nil // latest job result not recorded, so consider testing incomplete for the PR
 		}
 
-		latest := string(bytes)
-		latestPath := fmt.Sprintf("%s%s/", attrs.Prefix, latest)
-		finishedJSON := fmt.Sprintf("%sfinished.json", latestPath)
+		job.latestRunId = string(bytes)
+		job.latestRunPath = fmt.Sprintf("%s%s/", job.bucketPrefix, job.latestRunId)
+		finishedJSON := fmt.Sprintf("%sfinished.json", job.latestRunPath)
 
 		// currently we only validate that the file exists, we aren't pulling anything out of it
-		if !jobRun.ContentExists(context.TODO(), finishedJSON) {
-			return false, nil // testing not yet complete for the PR
+		if !gcsJobRun.ContentExists(context.TODO(), finishedJSON) {
+			return nil // testing not yet complete for the PR
 		}
 
-		if dryrun {
-			// we only want to evaluate if job run finished or not
-			continue
-		}
+		jobs = append(jobs, job) // officially a finished job if the latest run has finished
+	}
+	return
+}
 
+// buildPRJobRiskAnalysis walks the runs for a PR job to sort out which to analyze;
+// if the map is empty, it indicates that either all tests passed or any analysis for failures was unknown.
+func (aw *AnalysisWorker) buildPRJobRiskAnalysis(logger *log.Entry, jobs []prJobInfo) map[string]RiskAnalysisSummary {
+	analysisByJobs := map[string]RiskAnalysisSummary{}
+	for _, jobInfo := range jobs {
 		// we don't only want the latest run, we want to scan all the runs
 		// so we can find the most recent run prior to latest.
 		// we build the risk analysis for latest but only include failed tests that
 		// also occurred in latest-1.
-		prowJobMap, mostRecentStartTime := aw.buildProwJobMap(logger.WithField("job", jobName), attrs.Prefix)
+		prowJobMap, mostRecentStartTime := aw.buildProwJobMap(logger.WithField("job", jobInfo.name), jobInfo.bucketPrefix)
 
 		// we don't report risk on jobs without 2 or more runs.
 		// this is so we can compare failed tests against latest and latest-1,
@@ -654,7 +658,7 @@ func (aw *AnalysisWorker) buildPRJobRiskAnalysis(logger *log.Entry, prRoot strin
 			pjCopy := job // don't reference a changing loop var, reference an ephemeral copy
 
 			// if we have the latestProwJob mark it
-			if job.Status.BuildID == latest {
+			if job.Status.BuildID == jobInfo.latestRunId {
 				latestProwJob = &pjCopy
 				prowLink = latestProwJob.Status.URL
 			} else {
@@ -673,7 +677,7 @@ func (aw *AnalysisWorker) buildPRJobRiskAnalysis(logger *log.Entry, prRoot strin
 
 		// we didn't find the latest so log a warning and continue on
 		if latestProwJob == nil {
-			logger.Warnf("Failed to find latest prowjob for: %s", latestPath)
+			logger.Warnf("Failed to find latest prowjob expected at %s", jobInfo.latestRunPath)
 			continue
 		}
 
@@ -687,18 +691,18 @@ func (aw *AnalysisWorker) buildPRJobRiskAnalysis(logger *log.Entry, prRoot strin
 		// job count is > 1, but we didn't find a valid prior job
 		// Completion time is validated in buildProwJobMap
 		if priorProwJob == nil || latestProwJob.Status.CompletionTime.Before(*priorProwJob.Status.CompletionTime) {
-			logger.Warnf("Invalid prior prowjob for: %s", latestPath)
+			logger.Warnf("Invalid prior prowjob for: %s", jobInfo.latestRunPath)
 			continue
 		}
 
 		priorRunID := priorProwJob.Status.BuildID
 		// lastly sanity check that our priorRun && latest are not the same
-		if latest == priorRunID {
-			logger.Warnf("Prior prowjob: %s and latest: %s are the same", priorRunID, latest)
+		if jobInfo.latestRunId == priorRunID {
+			logger.Warnf("Prior prowjob: %s and latest: %s are the same", priorRunID, jobInfo.latestRunId)
 			continue
 		}
 
-		_, priorRiskAnalysis := aw.getRiskSummary(priorRunID, fmt.Sprintf("%s%s/", attrs.Prefix, priorRunID), nil)
+		_, priorRiskAnalysis := aw.getRiskSummary(priorRunID, fmt.Sprintf("%s%s/", jobInfo.bucketPrefix, priorRunID), nil)
 
 		// if the priorRiskAnalysis is nil then skip since we require consecutive test failures
 		// this can happen if the job hasn't been imported yet
@@ -708,17 +712,16 @@ func (aw *AnalysisWorker) buildPRJobRiskAnalysis(logger *log.Entry, prRoot strin
 			continue
 		}
 
-		riskSummary, _ := aw.getRiskSummary(latest, latestPath, priorRiskAnalysis)
+		riskSummary, _ := aw.getRiskSummary(jobInfo.latestRunId, jobInfo.latestRunPath, priorRiskAnalysis)
 
 		// don't include none or unknown in our report
 		if riskSummary.OverallRisk.Level != api.FailureRiskLevelNone && riskSummary.OverallRisk.Level != api.FailureRiskLevelUnknown {
-			riskAnalysisSummary := RiskAnalysisSummary{Name: jobName, URL: prowLink, RiskLevel: riskSummary.OverallRisk.Level, OverallReasons: riskSummary.OverallRisk.Reasons, TestRiskAnalysis: riskSummary.Tests}
-			analysisByJobs[jobName] = riskAnalysisSummary
+			riskAnalysisSummary := RiskAnalysisSummary{Name: jobInfo.name, URL: prowLink, RiskLevel: riskSummary.OverallRisk.Level, OverallReasons: riskSummary.OverallRisk.Reasons, TestRiskAnalysis: riskSummary.Tests}
+			analysisByJobs[jobInfo.name] = riskAnalysisSummary
 		}
 	}
 
-	// if we get here it means all the latest jobRuns have finished
-	return true, analysisByJobs
+	return analysisByJobs
 }
 
 // buildProwJobMap Walks the GCS path for this job to find the completed job runs
