@@ -27,7 +27,6 @@ import (
 	"github.com/openshift/sippy/pkg/db/models"
 	"github.com/openshift/sippy/pkg/github/commenter"
 	"github.com/openshift/sippy/pkg/util"
-	"github.com/openshift/sippy/pkg/util/sets"
 )
 
 var (
@@ -618,9 +617,9 @@ func (aw *AnalysisWorker) getPrJobsIfFinished(logger *log.Entry, prRoot string) 
 			return nil // latest job result not recorded, so consider testing incomplete for the PR
 		}
 
-		job.latestRunId = string(bytes)
-		job.latestRunPath = fmt.Sprintf("%s%s/", job.bucketPrefix, job.latestRunId)
-		finishedJSON := fmt.Sprintf("%sfinished.json", job.latestRunPath)
+		latest := string(bytes)
+		latestPath := fmt.Sprintf("%s%s/", attrs.Prefix, latest)
+		finishedJSON := fmt.Sprintf("%sfinished.json", latestPath)
 
 		// currently we only validate that the file exists, we aren't pulling anything out of it
 		if !gcsJobRun.ContentExists(context.TODO(), finishedJSON) {
@@ -641,7 +640,7 @@ func (aw *AnalysisWorker) buildPRJobRiskAnalysis(logger *log.Entry, jobs []prJob
 		// so we can find the most recent run prior to latest.
 		// we build the risk analysis for latest but only include failed tests that
 		// also occurred in latest-1.
-		prowJobMap, mostRecentStartTime := aw.buildProwJobMap(logger.WithField("job", jobInfo.name), jobInfo.bucketPrefix)
+		prowJobMap := aw.buildProwJobMap(logger.WithField("job", jobInfo.name), jobInfo.bucketPrefix)
 
 		// we don't report risk on jobs without 2 or more runs.
 		// this is so we can compare failed tests against latest and latest-1,
@@ -683,6 +682,7 @@ func (aw *AnalysisWorker) buildPRJobRiskAnalysis(logger *log.Entry, jobs []prJob
 
 		// at times it appears that we add a comment that reflects the prior job
 		// and then update again shortly after
+		mostRecentStartTime := time.Time{}
 		if latestProwJob.Status.StartTime.Before(mostRecentStartTime) {
 			logger.Warnf("Latest prowjob start time: %s is before mostRecentStartTime: %s", latestProwJob.Status.StartTime.Format(time.RFC3339), mostRecentStartTime.Format(time.RFC3339))
 			continue
@@ -724,65 +724,55 @@ func (aw *AnalysisWorker) buildPRJobRiskAnalysis(logger *log.Entry, jobs []prJob
 	return analysisByJobs
 }
 
-// buildProwJobMap Walks the GCS path for this job to find the completed job runs
-// returning a map keyed by the completion time to the job and the most recent job start time
-// if no jobs are completed it will return an empty map
-func (aw *AnalysisWorker) buildProwJobMap(logger *log.Entry, prJobRoot string) (map[time.Time]prow.ProwJob, time.Time) {
+// buildProwJobMap Walks the GCS path for this job to find its completed job runs,
+// returning a map keyed by the completion time to the job (empty if no jobs are completed)
+func (aw *AnalysisWorker) buildProwJobMap(logger *log.Entry, prJobRoot string) map[time.Time]prow.ProwJob {
 	// get the list of objects one level down from our root
 	it := aw.gcsBucket.Objects(context.Background(), &storage.Query{
 		Prefix:    prJobRoot,
 		Delimiter: "/",
 	})
 
-	buildIDSet := sets.String{}
 	jobsByTime := make(map[time.Time]prow.ProwJob)
 	jobRun := gcs.NewGCSJobRun(aw.gcsBucket, "")
-	mostRecentStartTime := time.Time{}
 
 	for {
 		attrs, err := it.Next()
 		if errors.Is(err, iterator.Done) {
-			break
+			break // no more paths to look at
 		}
-
-		// want empty Name indicating a folder
 		if len(attrs.Name) > 0 {
-			continue
+			continue // look for empty Name which indicates a folder which should be a job run
 		}
 
-		bytes, err := jobRun.GetContent(context.TODO(), fmt.Sprintf("%s%s", attrs.Prefix, "prowjob.json"))
-		if err != nil {
+		// load the prowjob recorded in this run
+		var pj prow.ProwJob
+		if bytes, err := jobRun.GetContent(context.TODO(), fmt.Sprintf("%s%s", attrs.Prefix, "prowjob.json")); err != nil {
 			logger.WithError(err).Errorf("Failed to get prowjob for: %s", attrs.Prefix)
 			continue
-		}
-
-		var pj prow.ProwJob
-		if err := json.Unmarshal(bytes, &pj); err != nil {
+		} else if err := json.Unmarshal(bytes, &pj); err != nil {
 			logger.WithError(err).Errorf("Failed to unmarshall prowjob for: %s", attrs.Prefix)
 			continue
 		}
 
-		// CompletionTime can be nil
-		// validate it isn't prior to adding
-		if pj.Status.CompletionTime != nil {
-
-			// not sure if we sometimes get duplicate jobs with different completion times
-			// but adding defensive check in case
-			if buildIDSet.Has(pj.Status.BuildID) {
-				logger.Warnf("BuildID: %s has been processed already", pj.Status.BuildID)
-				continue
-			}
-
-			jobsByTime[*pj.Status.CompletionTime] = pj
-			buildIDSet.Insert(pj.Status.BuildID)
+		// validate that this job is valid for our purposes. we checked that the job had a complete latest run,
+		// but the jobs before that could be in invalid states, and prow could have started a new run in the meantime,
+		// so guard against some of these edge cases.
+		if pj.Status.CompletionTime == nil {
+			logger.Debugf("ignoring prowjob %s with no completion time", pj.Status.BuildID)
+			continue
+		} else if pj.Status.State != prow.SuccessState && pj.Status.State != prow.FailureState {
+			logger.Debugf("ignoring prowjob %s in state %s", pj.Status.BuildID, pj.Status.State)
+			continue // filter out jobs that were aborted, failed to launch, just started, etc
+		} else if !strings.HasSuffix(attrs.Prefix, pj.Status.BuildID+"/") {
+			logger.Warnf("saw prowjob in folder %s with mismatched BuildId %s", attrs.Prefix, pj.Status.BuildID)
+			continue // the build id should match the folder name, else WTF?
 		}
 
-		if pj.Status.StartTime.After(mostRecentStartTime) {
-			mostRecentStartTime = pj.Status.StartTime
-		}
+		jobsByTime[*pj.Status.CompletionTime] = pj
 	}
 
-	return jobsByTime, mostRecentStartTime
+	return jobsByTime
 }
 
 func (aw *AnalysisWorker) getRiskSummary(jobRunID, jobRunIDPath string, priorRiskAnalysis *api.ProwJobRunRiskAnalysis) (api.RiskSummary, *api.ProwJobRunRiskAnalysis) {
