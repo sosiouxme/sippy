@@ -1,7 +1,12 @@
 package sippyserver
 
 import (
+	"context"
 	"encoding/json"
+	"github.com/openshift/sippy/pkg/dataloader/prowloader/gcs"
+	"github.com/openshift/sippy/pkg/db"
+	"github.com/openshift/sippy/pkg/db/models"
+	"github.com/sirupsen/logrus"
 	"testing"
 
 	"github.com/openshift/sippy/pkg/apis/api"
@@ -86,4 +91,72 @@ func TestMatchPriorRiskAnalysisTest(t *testing.T) {
 
 		})
 	}
+}
+
+// define these in a _test.go file that doesn't get checked in
+const DSN = "postgresql://sippyro:[...]@sippy-postgresql[...]/sippy_openshift"
+const pathToBigQueryCredentials = "..."
+
+const DBLogLevel = "silent"
+
+func TestAnalysisWorker(t *testing.T) {
+	t.Skip() // requires a live bucket, not intended for CI
+
+	// initialize AnalysisWorker
+	gormLogLevel, err := db.ParseGormLogLevel(DBLogLevel)
+	if err != nil {
+		logrus.WithError(err).Fatal("Cannot parse db-log-level")
+	}
+	dbc, err := db.New(DSN, gormLogLevel)
+	if err != nil {
+		logrus.WithError(err).Fatal("Cannot connect to database")
+	}
+	gcsClient, err := gcs.NewGCSClient(context.TODO(),
+		pathToBigQueryCredentials,
+		"",
+	)
+	if err != nil {
+		t.Error("CRITICAL error getting GCS client which prevents PR commenting")
+	}
+	logrus.SetLevel(logrus.DebugLevel)
+
+	pendingComments := make(chan PendingComment, 5)
+	defer close(pendingComments)
+	pendingWork := make(chan models.PullRequestComment, 1)
+	defer close(pendingWork)
+
+	analysisWorker := AnalysisWorker{
+		riskAnalysisLocator: gcs.GetDefaultRiskAnalysisSummaryFile(),
+		dbc:                 dbc,
+		gcsBucket:           gcsClient.Bucket("test-platform-results"),
+		pendingAnalysis:     pendingWork,
+		pendingComments:     pendingComments,
+	}
+
+	// prPendingComment := models.PullRequestComment{Org: "openshift", Repo: "origin", PullNumber: 28075, SHA: "79d237196d93eb92ed58c66497d8718259264226", ProwJobRoot: "pr-logs/pull/28075/"}
+	prPendingComment := models.PullRequestComment{Org: "openshift", Repo: "origin", PullNumber: 29512, SHA: "8849ed78d4c51e2add729a68a2cbf8551c6d60c9", ProwJobRoot: "pr-logs/pull/29512/"} // mine for testing with one job only
+	//prPendingComment := models.PullRequestComment{Org: "openshift", Repo: "origin", PullNumber: 29474, SHA: "58a8615189ebd164a1ce87ffe9b078965a9f4b14", ProwJobRoot: "pr-logs/pull/29474/"}  // currently has a comment
+	analysisWorker.processPendingPrComment(prPendingComment)
+
+	pc := <-pendingComments
+	logrus.Infof("Pending comment: %+v", pc)
+}
+
+func TestBuildJobMap(t *testing.T) {
+	t.Skip() // requires a live bucket, not intended for CI
+
+	// initialize AnalysisWorker
+	gcsClient, err := gcs.NewGCSClient(context.TODO(),
+		pathToBigQueryCredentials,
+		"",
+	)
+	if err != nil {
+		t.Error("CRITICAL error getting GCS client which prevents PR commenting")
+	}
+
+	aw := AnalysisWorker{gcsBucket: gcsClient.Bucket("test-platform-results")}
+	logrus.SetLevel(logrus.DebugLevel)
+	logger := logrus.WithContext(context.TODO())
+	//logrus.Infof("saw job map %v", aw.buildProwJobRuns(logger, "pr-logs/pull/29512/pull-ci-openshift-origin-master-e2e-aws-ovn-single-node/"))
+	logrus.Infof("saw job map %v", aw.buildProwJobRuns(logger, "pr-logs/pull/29501/pull-ci-openshift-origin-master-e2e-aws-ovn-edge-zones/"))
 }
