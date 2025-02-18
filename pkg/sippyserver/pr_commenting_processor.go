@@ -163,6 +163,7 @@ func (wp *WorkProcessor) Run(ctx context.Context) {
 			newTestsWorker: &NewTestsWorker{
 				dbc:           wp.dbc,
 				newTestFilter: wp.newTestFilter,
+				fetchJobRun:   jobQueries.FetchJobRun,
 			},
 		}
 		go analysisWorker.Run()

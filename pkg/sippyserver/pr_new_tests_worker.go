@@ -3,17 +3,15 @@ package sippyserver
 import (
 	"errors"
 	"fmt"
-	"github.com/openshift/sippy/pkg/db/models"
-	"gorm.io/gorm"
-	"k8s.io/apimachinery/pkg/util/sets"
-	"strconv"
-
-	jobQueries "github.com/openshift/sippy/pkg/api"
 	"github.com/openshift/sippy/pkg/apis/api"
 	"github.com/openshift/sippy/pkg/apis/prow"
 	spv1 "github.com/openshift/sippy/pkg/apis/sippyprocessing/v1"
 	"github.com/openshift/sippy/pkg/db"
+	"github.com/openshift/sippy/pkg/db/models"
 	"github.com/sirupsen/logrus"
+	"gorm.io/gorm"
+	"k8s.io/apimachinery/pkg/util/sets"
+	"strconv"
 )
 
 type NewTest struct {
@@ -51,7 +49,7 @@ type JobNewTestRisks struct {
 }
 
 type NewTestFilter interface {
-	IsNewTest(logger *logrus.Entry, testName models.Test) (bool, error)
+	IsNewTest(logger *logrus.Entry, test models.ProwJobRunTest) (bool, error)
 }
 
 // pgNewTestFilter queries postgres to determine if a test is new. We can share
@@ -65,6 +63,7 @@ type pgNewTestFilter struct {
 type NewTestsWorker struct {
 	dbc           *db.DB
 	newTestFilter NewTestFilter
+	fetchJobRun   func(dbc *db.DB, jobRunID int64, unknownTests bool, logger *logrus.Entry) (*models.ProwJobRun, int, error)
 }
 
 // analyzeRisks walks the runs for a PR job looking for new tests and assessing their risk
@@ -235,7 +234,7 @@ func (ntw *NewTestsWorker) getNewTestsForJobRun(logger *logrus.Entry, prowjob *p
 	if jobRunIntID, err := strconv.ParseInt(prowjob.Status.BuildID, 10, 64); err != nil {
 		logger.WithError(err).Error("Failed to parse jobRunId id") // this would be exceedingly strange
 		return nil, err
-	} else if jobRun, _, err = jobQueries.FetchJobRun(ntw.dbc, jobRunIntID, true, logger); err != nil {
+	} else if jobRun, _, err = ntw.fetchJobRun(ntw.dbc, jobRunIntID, true, logger); err != nil {
 		// RecordNotFound can be expected if the jobRunId job isn't in sippy yet. log any other error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			logger.Debug("Job run not found")
@@ -245,7 +244,7 @@ func (ntw *NewTestsWorker) getNewTestsForJobRun(logger *logrus.Entry, prowjob *p
 		return nil, err
 	}
 	for _, test := range jobRun.Tests {
-		if isNew, err := ntw.newTestFilter.IsNewTest(logger, test.Test); err != nil {
+		if isNew, err := ntw.newTestFilter.IsNewTest(logger, test); err != nil {
 			logger.WithError(err).Error("Error checking if test is new")
 			return nil, err // if this errors, it muddies this job's analysis, so throw it out
 		} else if isNew {
@@ -274,9 +273,9 @@ a new test.
 Records for PRs and pending PR comments are both created/updated at the same time,
 so this should be a reasonably robust strategy, though not infallible.
 */
-func (ntf *pgNewTestFilter) IsNewTest(logger *logrus.Entry, test models.Test) (bool, error) {
-	logger = logger.WithField("func", "IsNewTest").WithField("test", test.Name)
-	if ntf.notNewTests.Has(test.ID) {
+func (ntf *pgNewTestFilter) IsNewTest(logger *logrus.Entry, testRun models.ProwJobRunTest) (bool, error) {
+	logger = logger.WithField("func", "IsNewTest").WithField("test", testRun.Test.Name)
+	if ntf.notNewTests.Has(testRun.TestID) {
 		// some past query found a PR that merged with this test.
 		logger.Debug("Test previously cached as not new")
 		return false, nil
@@ -286,9 +285,9 @@ func (ntf *pgNewTestFilter) IsNewTest(logger *logrus.Entry, test models.Test) (b
 		Table("prow_job_run_tests as t").
 		Joins("INNER JOIN prow_job_run_prow_pull_requests as prmap on prmap.prow_job_run_id = t.prow_job_run_id").
 		Joins("INNER JOIN prow_pull_requests as prs on prs.id = prmap.prow_pull_request_id").
-		Where("t.test_id = ?", test.ID).
+		Where("t.test_id = ?", testRun.TestID).
 		Where("merged_at is not null").
-		Where("merged_at < ?", test.CreatedAt).
+		Where("merged_at < ?", testRun.CreatedAt).
 		Select("org, repo, number, sha, merged_at").
 		Limit(1).Find(&pjpr) // any result demonstrates this is not new
 	if res.Error != nil {
@@ -298,7 +297,7 @@ func (ntf *pgNewTestFilter) IsNewTest(logger *logrus.Entry, test models.Test) (b
 	if pjpr.MergedAt != nil {
 		// means such a record was found, so this is not new
 		logger.Debugf("Test ran in previously-merged PR %s/%s#%d@%s", pjpr.Org, pjpr.Repo, pjpr.Number, pjpr.SHA)
-		ntf.notNewTests.Insert(test.ID) // do not need to look up next time
+		ntf.notNewTests.Insert(testRun.TestID) // do not need to look up next time
 		return false, nil
 	}
 	// query succeeded but no such record was found, so this is new
