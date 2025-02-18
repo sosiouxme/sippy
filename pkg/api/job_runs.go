@@ -102,15 +102,16 @@ func JobsRunsReportFromDB(dbc *db.DB, filterOpts *filter.FilterOptions, release 
 }
 
 // FetchJobRun returns a single job run loaded from postgres and populated with the ProwJob and test results.
-// If allTests is true, all tests are loaded, otherwise only failed tests are loaded.
-func FetchJobRun(dbc *db.DB, jobRunID int64, allTests bool, logger *log.Entry) (*models.ProwJobRun, int, error) {
+// If unknownTests is true, all tests not registered in test_ownerships are loaded; otherwise any failed tests are loaded.
+func FetchJobRun(dbc *db.DB, jobRunID int64, unknownTests bool, logger *log.Entry) (*models.ProwJobRun, int, error) {
 	jobRun := &models.ProwJobRun{}
 
 	// Load the ProwJobRun, ProwJob, and (failed|all) tests:
 	// TODO: we may want to expand to analyzing flakes here in the future
 	q := dbc.DB.Joins("ProwJob")
-	if allTests {
-		q = q.Preload("Tests")
+	if unknownTests {
+		// this doesn't establish that the tests are new, but it does filter out any that are known from payloads
+		q = q.Preload("Tests", "test_id not in (select test_id from test_ownerships)")
 	} else { // load only failures
 		q = q.Preload("Tests", "status = ?", sippyprocessingv1.TestStatusFailure)
 	}
@@ -121,14 +122,10 @@ func FetchJobRun(dbc *db.DB, jobRunID int64, allTests bool, logger *log.Entry) (
 		return nil, -1, res.Error
 	}
 
-	jobRunTestCount := len(jobRun.Tests)
-	if !allTests {
-		var err error
-		jobRunTestCount, err = query.JobRunTestCount(dbc, jobRunID)
-		if err != nil {
-			logger.WithError(err).Error("Error getting job run test count")
-			jobRunTestCount = -1
-		}
+	jobRunTestCount, err := query.JobRunTestCount(dbc, jobRunID)
+	if err != nil { // should be unusual
+		logger.WithError(err).Errorf("Error getting test count for job run %d", jobRunID)
+		jobRunTestCount = len(jobRun.Tests) // has as many as we loaded at least...
 	}
 
 	return jobRun, jobRunTestCount, nil

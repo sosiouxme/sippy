@@ -3,7 +3,6 @@ package api
 
 import (
 	"fmt"
-	"github.com/openshift/sippy/pkg/sippyserver"
 	"strconv"
 	"time"
 
@@ -752,7 +751,6 @@ type ProwJobRunRiskAnalysis struct {
 	Release        string
 	CompareRelease string
 	Tests          []TestRiskAnalysis
-	NewTests       []sippyserver.NewTest
 	OverallRisk    JobFailureRisk
 	OpenBugs       []models.Bug
 }

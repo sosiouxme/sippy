@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/openshift/sippy/pkg/db/models"
 	"gorm.io/gorm"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"strconv"
 
 	jobQueries "github.com/openshift/sippy/pkg/api"
@@ -50,14 +51,15 @@ type JobNewTestRisks struct {
 }
 
 type NewTestFilter interface {
-	IsNewTest(testName string) (bool, error)
+	IsNewTest(logger *logrus.Entry, testName models.Test) (bool, error)
 }
 
-// BQNewTestFilter uses bigquery to determine if a test is new. We can share
+// pgNewTestFilter queries postgres to determine if a test is new. We can share
 // a single instance between workers and cache results so we are not constantly
-// querying BQ for the same test.
-type BQNewTestFilter struct {
-	// we will have some form of cache and a bigquery client at least.
+// querying postgres for the same test.
+type pgNewTestFilter struct {
+	dbc         *db.DB
+	notNewTests sets.Set[uint] // cache of test names that turn out not to be new
 }
 
 type NewTestsWorker struct {
@@ -244,7 +246,7 @@ func (ntw *NewTestsWorker) getNewTestsForJobRun(logger *logrus.Entry, prowjob *p
 		return nil, err
 	}
 	for _, test := range jobRun.Tests {
-		if new, err := ntw.newTestFilter.IsNewTest(test.Test.Name); err != nil {
+		if new, err := ntw.newTestFilter.IsNewTest(logger, test.Test); err != nil {
 			logger.WithError(err).Error("Error checking if test is new")
 			return nil, err // if this breaks, it muddies this job's analysis
 		} else if new {
@@ -260,7 +262,47 @@ func (ntw *NewTestsWorker) getNewTestsForJobRun(logger *logrus.Entry, prowjob *p
 	return newTests, nil
 }
 
-func (*BQNewTestFilter) IsNewTest(testName string) (bool, error) {
-	// TODO
-	return false, nil
+/*
+IsNewTest queries postgres to determine if a test not registered in `test_ownerships`
+is in fact new. For various $reasons, not all tests that we import in sippy are registered
+in that table, so we need additional verification to prevent flagging the same test as
+"new" over and over again.
+
+The search strategy is to look for instances of the test that ran against
+PRs that merged before the test under consideration began. If there are any,
+we can cache that test name as not new. If there are none, then consider this
+a new test.
+Records for PRs and pending PR comments are both created/updated at the same time,
+so this should be a reasonably robust strategy, though not infallible.
+*/
+func (ntf *pgNewTestFilter) IsNewTest(logger *logrus.Entry, test models.Test) (bool, error) {
+	logger = logger.WithField("func", "IsNewTest").WithField("test", test.Name)
+	if ntf.notNewTests.Has(test.ID) {
+		// some past query found a PR that merged with this test.
+		logger.Debug("Test previously cached as not new")
+		return false, nil
+	}
+	pjpr := models.ProwPullRequest{}
+	res := ntf.dbc.DB.
+		Table("prow_job_run_tests as t").
+		Joins("INNER JOIN prow_job_run_prow_pull_requests as prmap on prmap.prow_job_run_id = t.prow_job_run_id").
+		Joins("INNER JOIN prow_pull_requests as prs on prs.id = prmap.prow_pull_request_id").
+		Where("t.test_id = ?", test.ID).
+		Where("merged_at is not null").
+		Where("merged_at < ?", test.CreatedAt).
+		Select("org, repo, number, sha, merged_at").
+		Limit(1).Find(&pjpr) // any result demonstrates this is not new
+	if res.Error != nil {
+		logger.WithError(res.Error).Error("Error querying for PRs that included this test.")
+		return false, res.Error
+	}
+	if pjpr.MergedAt != nil {
+		// means such a record was found, so this is not new
+		logger.Debugf("Test ran in previously-merged PR %s/%s#%d@%s", pjpr.Org, pjpr.Repo, pjpr.Number, pjpr.SHA)
+		ntf.notNewTests.Insert(test.ID) // do not need to look up next time
+		return false, nil
+	}
+	// query succeeded but no such record was found, so this is new
+	logger.Debug("Test has not run in any previously-merged PR, considering it new.")
+	return true, nil
 }

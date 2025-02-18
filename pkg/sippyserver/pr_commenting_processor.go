@@ -72,7 +72,7 @@ func NewWorkProcessor(dbc *db.DB, gcsBucket *storage.BucketHandle, commentAnalys
 		commentUpdaterRate:     commentUpdaterRate,
 		commentAnalysisWorkers: commentAnalysisWorkers,
 		dryRunOnly:             dryRunOnly,
-		newTestFilter:          &BQNewTestFilter{},
+		newTestFilter:          &pgNewTestFilter{},
 	}
 	return wp
 }

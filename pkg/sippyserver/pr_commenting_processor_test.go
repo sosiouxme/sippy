@@ -3,15 +3,25 @@ package sippyserver
 import (
 	"context"
 	"encoding/json"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
+	gormlogger "gorm.io/gorm/logger"
+	"k8s.io/apimachinery/pkg/util/sets"
+	"testing"
+	"time"
+
+	"github.com/openshift/sippy/pkg/apis/api"
 	"github.com/openshift/sippy/pkg/dataloader/prowloader/gcs"
 	"github.com/openshift/sippy/pkg/db"
 	"github.com/openshift/sippy/pkg/db/models"
-	"github.com/sirupsen/logrus"
-	"testing"
-
-	"github.com/openshift/sippy/pkg/apis/api"
-	"github.com/stretchr/testify/assert"
 )
+
+// define these in a _test.go file that doesn't get checked in
+const DSN = "postgresql://sippyro:[...]@sippy-postgresql[...]/sippy_openshift"
+const pathToBigQueryCredentials = "..."
+
+// const DBLogLevel = "silent"
+const DBLogLevel = "info"
 
 func TestMatchPriorRiskAnalysisTest(t *testing.T) {
 
@@ -93,29 +103,16 @@ func TestMatchPriorRiskAnalysisTest(t *testing.T) {
 	}
 }
 
-// define these in a _test.go file that doesn't get checked in
-const DSN = "postgresql://sippyro:[...]@sippy-postgresql[...]/sippy_openshift"
-const pathToBigQueryCredentials = "..."
-
-const DBLogLevel = "silent"
-
 func TestAnalysisWorker(t *testing.T) {
 	t.Skip() // requires a live bucket, not intended for CI
 
 	// initialize AnalysisWorker
-	gormLogLevel, err := db.ParseGormLogLevel(DBLogLevel)
-	if err != nil {
-		logrus.WithError(err).Fatal("Cannot parse db-log-level")
-	}
-	dbc, err := db.New(DSN, gormLogLevel)
-	if err != nil {
-		logrus.WithError(err).Fatal("Cannot connect to database")
-	}
-	gcsClient, err := gcs.NewGCSClient(context.TODO(),
+	err1, dbc := dbHandle()
+	gcsClient, err2 := gcs.NewGCSClient(context.TODO(),
 		pathToBigQueryCredentials,
 		"",
 	)
-	if err != nil {
+	if err2 != nil || err1 != nil {
 		t.Error("CRITICAL error getting GCS client which prevents PR commenting")
 	}
 	logrus.SetLevel(logrus.DebugLevel)
@@ -142,6 +139,19 @@ func TestAnalysisWorker(t *testing.T) {
 	logrus.Infof("Pending comment: %+v", pc)
 }
 
+func dbHandle() (error, *db.DB) {
+	gormLogLevel, err := db.ParseGormLogLevel(DBLogLevel)
+	if err != nil {
+		logrus.WithError(err).Fatal("Cannot parse db-log-level")
+		gormLogLevel = gormlogger.Silent
+	}
+	dbc, err := db.New(DSN, gormLogLevel)
+	if err != nil {
+		logrus.WithError(err).Fatal("Cannot connect to database")
+	}
+	return err, dbc
+}
+
 func TestBuildJobMap(t *testing.T) {
 	t.Skip() // requires a live bucket, not intended for CI
 
@@ -159,4 +169,32 @@ func TestBuildJobMap(t *testing.T) {
 	logger := logrus.WithContext(context.TODO())
 	//logrus.Infof("saw job map %v", aw.buildProwJobRuns(logger, "pr-logs/pull/29512/pull-ci-openshift-origin-master-e2e-aws-ovn-single-node/"))
 	logrus.Infof("saw job map %v", aw.buildProwJobRuns(logger, "pr-logs/pull/29501/pull-ci-openshift-origin-master-e2e-aws-ovn-edge-zones/"))
+}
+
+func TestIsNewTest(t *testing.T) {
+	t.Skip() // requires a live db, not intended for CI
+	err1, dbc := dbHandle()
+	assert.Nil(t, err1, "Failed to connect to database")
+
+	ntf := &pgNewTestFilter{
+		dbc:         dbc,
+		notNewTests: sets.Set[uint]{},
+	}
+	logrus.SetLevel(logrus.DebugLevel)
+	logger := logrus.WithContext(context.TODO())
+
+	test := models.Test{Name: "[sig-sippy] openshift-tests should work"}
+	test.ID = 522
+	test.CreatedAt = time.Now()
+	isNew, err := ntf.IsNewTest(logger, test)
+
+	assert.Nil(t, err, "Failed to check if test is new")
+	assert.Equal(t, false, isNew, "Test should not be new")
+
+	test.Name = "a failed test that has never been seen before"
+	test.ID = 160471
+	isNew, err = ntf.IsNewTest(logger, test)
+
+	assert.Nil(t, err, "Failed to check if test is new")
+	assert.Equal(t, true, isNew, "Test should be new")
 }
