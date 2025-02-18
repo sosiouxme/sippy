@@ -93,8 +93,8 @@ func TestMatchPriorRiskAnalysisTest(t *testing.T) {
 func TestAnalysisWorker(t *testing.T) {
 	t.Skip()
 	// initialize AnalysisWorker
-	dbc := dbHandle(t)
-	gcsClient := getGcsBucket(t)
+	dbc := getDbHandle(t)
+	gcsBucket := getGcsBucket(t)
 	logrus.SetLevel(logrus.DebugLevel)
 
 	pendingComments := make(chan PendingComment, 5)
@@ -105,7 +105,7 @@ func TestAnalysisWorker(t *testing.T) {
 	analysisWorker := AnalysisWorker{
 		riskAnalysisLocator: gcs.GetDefaultRiskAnalysisSummaryFile(),
 		dbc:                 dbc,
-		gcsBucket:           gcsClient.Bucket("test-platform-results"),
+		gcsBucket:           gcsBucket,
 		pendingAnalysis:     pendingWork,
 		pendingComments:     pendingComments,
 	}

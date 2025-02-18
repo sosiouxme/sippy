@@ -30,7 +30,7 @@ import (
 		TEST_SIPPY_DATABASE_DSN: the DSN for the sippy postgres database e.g. postgresql://sippyro:...@sippy-postgresql...amazonaws.com/sippy_openshift
 		TEST_GCS_CREDS_PATH: the path to a local GCS credentials file, e.g. /home/$USER/git/sippy/openshift-sippy-ro.creds.json
 */
-func dbHandle(t *testing.T) *db.DB {
+func getDbHandle(t *testing.T) *db.DB {
 	dbLogLevel := os.Getenv("TEST_DB_LOG_LEVEL") // e.g. "info" or "silent"
 	if dbLogLevel == "" {
 		dbLogLevel = "silent"
@@ -52,26 +52,65 @@ func dbHandle(t *testing.T) *db.DB {
 	return dbc
 }
 
-func getGcsBucket(t *testing.T) *storage.Client {
+func getGcsBucket(t *testing.T) *storage.BucketHandle {
 	pathToGcsCredentials := os.Getenv("TEST_GCS_CREDS_PATH")
 	if pathToGcsCredentials == "" {
 		t.Skip("TEST_GCS_CREDS_PATH environment variable is not set; skipping GCS tests")
 	}
 	gcsClient, err := gcs.NewGCSClient(context.TODO(), pathToGcsCredentials, "")
 	if err != nil {
-		logrus.WithError(err).Fatal("CRITICAL error getting GCS client which prevents testing")
+		logrus.WithError(err).Fatalf("CRITICAL error getting GCS client with credentials at %s", pathToGcsCredentials)
 	}
-	return gcsClient
+	return gcsClient.Bucket("test-platform-results")
 }
 
 func TestBuildJobMap(t *testing.T) {
 	// initialize AnalysisWorker
-	gcsClient := getGcsBucket(t)
-	aw := AnalysisWorker{gcsBucket: gcsClient.Bucket("test-platform-results")}
+	gcsBucket := getGcsBucket(t)
+	aw := AnalysisWorker{gcsBucket: gcsBucket}
 	logrus.SetLevel(logrus.DebugLevel)
 	logger := logrus.WithContext(context.TODO())
 	//logrus.Infof("saw job map %v", aw.buildProwJobRuns(logger, "pr-logs/pull/29512/pull-ci-openshift-origin-master-e2e-aws-ovn-single-node/"))
 	logrus.Infof("saw job map %v", aw.buildProwJobRuns(logger, "pr-logs/pull/29501/pull-ci-openshift-origin-master-e2e-aws-ovn-edge-zones/"))
+}
+
+func TestAssessJobRisks(t *testing.T) {
+	logger := logrus.WithContext(context.TODO())
+	logrus.SetLevel(logrus.DebugLevel)
+
+	// Initialize a standard NewTestsWorker
+	dbc := getDbHandle(t)
+	ntf := &pgNewTestFilter{dbc: dbc, notNewTests: sets.Set[uint]{}}
+	ntw := &NewTestsWorker{dbc: dbc, newTestFilter: ntf, fetchJobRun: api.FetchJobRun}
+
+	// Initialize GCS client and look up known job in the bucket
+	bucket := getGcsBucket(t)
+	aw := AnalysisWorker{gcsBucket: bucket, newTestsWorker: ntw}
+	jobRuns := aw.buildProwJobRuns(logger, "pr-logs/pull/29512/pull-ci-openshift-origin-master-e2e-aws-ovn-single-node/")
+	if !assert.True(t, len(jobRuns) > 0, "Failed to load job runs") {
+		return // expected to use the first job run as a test subject
+	}
+	if !assert.Equal(t, "1885131315280351232", jobRuns[0].Status.BuildID, "Unexpected build ID") {
+		return
+	}
+
+	// Assess job risks
+	jobRisks := ntw.assessJobRisks(logger, []*prow.ProwJob{&jobRuns[0]})
+	if !assert.Equalf(t, len(jobRisks), 2, "expect risks only for the two that were new; saw %+v", jobRisks) {
+		return
+	}
+	failed, ok := jobRisks["a failed test that has never been seen before"]
+	if assert.True(t, ok, "Should have found failed test") {
+		assert.Equal(t, 1, failed.Failures, "Unexpected number of failures")
+	}
+	passed, ok := jobRisks["a passed test that has never been seen before"]
+	if assert.True(t, ok, "Should have found failed test") {
+		assert.Equal(t, 0, passed.Failures, "Unexpected failure found")
+	}
+}
+
+func TestAssessMultiRunRisks(t *testing.T) {
+	// TODO
 }
 
 func newTest(name string, success, failure bool) NewTest {
@@ -227,19 +266,13 @@ func (m *errorNewTestFilter) IsNewTest(logger *logrus.Entry, test models.ProwJob
 }
 
 func TestFunc_getNewTestsForJobRun(t *testing.T) {
-	dbc := dbHandle(t)
+	dbc := getDbHandle(t)
 
-	ntf := &pgNewTestFilter{
-		dbc:         dbc,
-		notNewTests: sets.Set[uint]{},
-	}
-	ntw := &NewTestsWorker{
-		dbc:           dbc,
-		newTestFilter: ntf,
-		fetchJobRun:   api.FetchJobRun,
-	}
+	// Initialize a standard NewTestsWorker
+	ntf := &pgNewTestFilter{dbc: dbc, notNewTests: sets.Set[uint]{}}
+	ntw := &NewTestsWorker{dbc: dbc, newTestFilter: ntf, fetchJobRun: api.FetchJobRun}
 
-	// try it with a known job run
+	// try with a known job run
 	jobRun := &prow.ProwJob{
 		Spec:   prow.ProwJobSpec{Job: "pull-ci-openshift-origin-master-e2e-aws-ovn-single-node"},
 		Status: prow.ProwJobStatus{BuildID: "1885131315280351232"},
@@ -257,7 +290,7 @@ func TestFunc_getNewTestsForJobRun(t *testing.T) {
 }
 
 func TestIsNewTest(t *testing.T) {
-	dbc := dbHandle(t)
+	dbc := getDbHandle(t)
 
 	ntf := &pgNewTestFilter{
 		dbc:         dbc,
