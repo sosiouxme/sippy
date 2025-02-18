@@ -1,12 +1,14 @@
 package sippyserver
 
 import (
+	"cloud.google.com/go/storage"
 	"context"
 	"encoding/json"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	gormlogger "gorm.io/gorm/logger"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"os"
 	"testing"
 	"time"
 
@@ -16,12 +18,47 @@ import (
 	"github.com/openshift/sippy/pkg/db/models"
 )
 
-// define these in a _test.go file that doesn't get checked in
-const DSN = "postgresql://sippyro:[...]@sippy-postgresql[...]/sippy_openshift"
-const pathToBigQueryCredentials = "..."
+/*
+	  many of these tests require a live database and/or GCS bucket with known data to run,
+	  so we do not want them trying to run during CI. We will skip tests whose required environment variables are not set.
+	  do not risk checking in credentials, supply them with environment variables:
+		TEST_DB_LOG_LEVEL: "silent" or "info" or "warn" or "error" - the log level for gorm database methods
+		TEST_SIPPY_DATABASE_DSN: the DSN for the sippy postgres database e.g. postgresql://sippyro:...@sippy-postgresql...amazonaws.com/sippy_openshift
+		TEST_GCS_CREDS_PATH: the path to a local GCS credentials file, e.g. /home/$USER/git/sippy/openshift-sippy-ro.creds.json
+*/
+func dbHandle(t *testing.T) *db.DB {
+	dbLogLevel := os.Getenv("TEST_DB_LOG_LEVEL") // e.g. "info" or "silent"
+	if dbLogLevel == "" {
+		dbLogLevel = "silent"
+	}
+	gormLogLevel, err := db.ParseGormLogLevel(dbLogLevel)
+	if err != nil {
+		logrus.WithError(err).Errorf("Cannot parse TEST_DB_LOG_LEVEL %s", dbLogLevel)
+		gormLogLevel = gormlogger.Silent
+	}
 
-// const DBLogLevel = "silent"
-const DBLogLevel = "info"
+	dsn := os.Getenv("TEST_SIPPY_DATABASE_DSN")
+	if dsn == "" {
+		t.Skip("TEST_SIPPY_DATABASE_DSN environment variable is not set; skipping database tests")
+	}
+	dbc, err := db.New(dsn, gormLogLevel)
+	if err != nil {
+		logrus.WithError(err).Fatal("Cannot connect to database")
+	}
+	return dbc
+}
+
+func getGcsBucket(t *testing.T) *storage.Client {
+	pathToGcsCredentials := os.Getenv("TEST_GCS_CREDS_PATH")
+	if pathToGcsCredentials == "" {
+		t.Skip("TEST_GCS_CREDS_PATH environment variable is not set; skipping GCS tests")
+	}
+	gcsClient, err := gcs.NewGCSClient(context.TODO(), pathToGcsCredentials, "")
+	if err != nil {
+		logrus.WithError(err).Fatal("CRITICAL error getting GCS client which prevents testing")
+	}
+	return gcsClient
+}
 
 func TestMatchPriorRiskAnalysisTest(t *testing.T) {
 
@@ -104,17 +141,9 @@ func TestMatchPriorRiskAnalysisTest(t *testing.T) {
 }
 
 func TestAnalysisWorker(t *testing.T) {
-	t.Skip() // requires a live bucket, not intended for CI
-
 	// initialize AnalysisWorker
-	err1, dbc := dbHandle()
-	gcsClient, err2 := gcs.NewGCSClient(context.TODO(),
-		pathToBigQueryCredentials,
-		"",
-	)
-	if err2 != nil || err1 != nil {
-		t.Error("CRITICAL error getting GCS client which prevents PR commenting")
-	}
+	dbc := dbHandle(t)
+	gcsClient := getGcsBucket(t)
 	logrus.SetLevel(logrus.DebugLevel)
 
 	pendingComments := make(chan PendingComment, 5)
@@ -139,31 +168,9 @@ func TestAnalysisWorker(t *testing.T) {
 	logrus.Infof("Pending comment: %+v", pc)
 }
 
-func dbHandle() (error, *db.DB) {
-	gormLogLevel, err := db.ParseGormLogLevel(DBLogLevel)
-	if err != nil {
-		logrus.WithError(err).Fatal("Cannot parse db-log-level")
-		gormLogLevel = gormlogger.Silent
-	}
-	dbc, err := db.New(DSN, gormLogLevel)
-	if err != nil {
-		logrus.WithError(err).Fatal("Cannot connect to database")
-	}
-	return err, dbc
-}
-
 func TestBuildJobMap(t *testing.T) {
-	t.Skip() // requires a live bucket, not intended for CI
-
 	// initialize AnalysisWorker
-	gcsClient, err := gcs.NewGCSClient(context.TODO(),
-		pathToBigQueryCredentials,
-		"",
-	)
-	if err != nil {
-		t.Error("CRITICAL error getting GCS client which prevents PR commenting")
-	}
-
+	gcsClient := getGcsBucket(t)
 	aw := AnalysisWorker{gcsBucket: gcsClient.Bucket("test-platform-results")}
 	logrus.SetLevel(logrus.DebugLevel)
 	logger := logrus.WithContext(context.TODO())
@@ -172,9 +179,7 @@ func TestBuildJobMap(t *testing.T) {
 }
 
 func TestIsNewTest(t *testing.T) {
-	t.Skip() // requires a live db, not intended for CI
-	err1, dbc := dbHandle()
-	assert.Nil(t, err1, "Failed to connect to database")
+	dbc := dbHandle(t)
 
 	ntf := &pgNewTestFilter{
 		dbc:         dbc,

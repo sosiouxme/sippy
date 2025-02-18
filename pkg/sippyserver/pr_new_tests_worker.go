@@ -233,8 +233,7 @@ func (ntw *NewTestsWorker) getNewTestsForJobRun(logger *logrus.Entry, prowjob *p
 	logger = logger.WithField("func", "getNewTestsForJobRun").WithField("job", prowjob.Spec.Job).WithField("run", prowjob.Status.BuildID)
 	var jobRun *models.ProwJobRun
 	if jobRunIntID, err := strconv.ParseInt(prowjob.Status.BuildID, 10, 64); err != nil {
-		// this would be exceedingly strange
-		logger.WithError(err).Error("Failed to parse jobRunId id")
+		logger.WithError(err).Error("Failed to parse jobRunId id") // this would be exceedingly strange
 		return nil, err
 	} else if jobRun, _, err = jobQueries.FetchJobRun(ntw.dbc, jobRunIntID, true, logger); err != nil {
 		// RecordNotFound can be expected if the jobRunId job isn't in sippy yet. log any other error
@@ -246,10 +245,10 @@ func (ntw *NewTestsWorker) getNewTestsForJobRun(logger *logrus.Entry, prowjob *p
 		return nil, err
 	}
 	for _, test := range jobRun.Tests {
-		if new, err := ntw.newTestFilter.IsNewTest(logger, test.Test); err != nil {
+		if isNew, err := ntw.newTestFilter.IsNewTest(logger, test.Test); err != nil {
 			logger.WithError(err).Error("Error checking if test is new")
-			return nil, err // if this breaks, it muddies this job's analysis
-		} else if new {
+			return nil, err // if this errors, it muddies this job's analysis, so throw it out
+		} else if isNew {
 			newTests = append(newTests, NewTest{
 				JobName:  prowjob.Spec.Job,
 				JobRunID: jobRun.ID,
