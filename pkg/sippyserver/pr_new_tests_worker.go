@@ -85,7 +85,8 @@ func (ntw *NewTestsWorker) analyzeRisks(logger *logrus.Entry, jobs []prJobInfo) 
 	}
 
 	if len(jobRisks) > 0 {
-		// look across the PR's jobs and upgrade risks for new tests that are only found in one job
+		// look across the PR's jobs and upgrade risks for new tests that are only found in one job.
+		// a new test that is only seen in one job is a risk similar to one not seen across all runs.
 		assessCrossJobRisks(jobRisks, jobs)
 		// and finally, assign risk levels given everything we know about the new tests
 		assignRiskLevels(jobRisks)
@@ -183,9 +184,11 @@ func (ntw *NewTestsWorker) isIncompleteRun(run prow.ProwJob) bool {
 }
 
 func (ntw *NewTestsWorker) assessJobRisks(logger *logrus.Entry, jobRuns []*prow.ProwJob) map[string]NewTestRisk {
+	logger = logger.WithField("func", "assessJobRisks").WithField("runs", len(jobRuns))
 	// find the new tests in all the comparable runs we have for one job
 	newTestsByName := map[string][]NewTest{}
 	for _, run := range jobRuns {
+		logger.Infof("Finding new tests for job %s run %s", run.Spec.Job, run.Status.BuildID)
 		if newTests, err := ntw.getNewTestsForJobRun(logger, run); err == nil {
 			for _, test := range newTests {
 				newTestsByName[test.TestName] = append(newTestsByName[test.TestName], test)
@@ -193,39 +196,42 @@ func (ntw *NewTestsWorker) assessJobRisks(logger *logrus.Entry, jobRuns []*prow.
 		}
 	}
 
-	// evaluate each test for risks
+	// evaluate this job's run(s) of each new test for risk
 	risksByName := make(map[string]NewTestRisk, 0)
 	for testName, tests := range newTestsByName {
-		// new tests in general are a low risk if they succeed, mainly we want to record their existence
-		risk := NewTestRisk{
-			TestName:   testName,
-			AnyMissing: false,
-			Runs:       len(jobRuns),
-			NewTests:   tests,
-		}
-
-		// new tests that fail in any runs are a high risk
-		for _, test := range tests {
-			if test.Failure && test.Success {
-				// sometimes new tests are deliberately introduced to flake;
-				// count these for informational purposes but do not consider them an extra risk
-				risk.Flakes += 1
-			} else if test.Failure {
-				risk.Failures += 1
-			}
-		}
-
-		// with multiple runs, check whether new tests also showed up in all runs;
-		// if not, they likely either have dynamic names or do not consistently run, either of which is a risk
-		if len(tests) < len(jobRuns) {
-			risk.AnyMissing = true
-		}
-
-		risksByName[testName] = risk
-		// later at the PR level, we can further compare new tests across multiple jobs;
-		// a new test that is only seen in one job is a risk similar to one not seen across all runs.
+		risksByName[testName] = makeNewTestRisk(testName, len(jobRuns), tests)
 	}
+	// later, we can further compare new tests across multiple jobs, for the same PR.
 	return risksByName
+}
+
+// makeNewTestRisk builds the risk record of a new test based on multiple runs of one job
+func makeNewTestRisk(testName string, jobRuns int, tests []NewTest) NewTestRisk {
+	// new tests in general are a low risk if they succeed, mainly we want to record their existence
+	risk := NewTestRisk{
+		TestName:   testName,
+		AnyMissing: false,
+		Runs:       jobRuns,
+		NewTests:   tests,
+	}
+
+	// new tests that fail in any runs are a high risk
+	for _, test := range tests {
+		if test.Failure && test.Success {
+			// sometimes new tests are deliberately introduced to flake;
+			// count these for informational purposes but do not consider them an extra risk
+			risk.Flakes += 1
+		} else if test.Failure {
+			risk.Failures += 1
+		}
+	}
+
+	// with multiple runs, check whether new tests also showed up in all runs;
+	// if not, they likely either have dynamic names or do not consistently run, either of which is a risk
+	if len(tests) < jobRuns {
+		risk.AnyMissing = true
+	}
+	return risk
 }
 
 func (ntw *NewTestsWorker) getNewTestsForJobRun(logger *logrus.Entry, prowjob *prow.ProwJob) (newTests []NewTest, err error) {
