@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/openshift/sippy/pkg/apis/api"
 	"github.com/openshift/sippy/pkg/apis/prow"
 	"github.com/openshift/sippy/pkg/apis/sippyprocessing/v1"
 	"github.com/openshift/sippy/pkg/dataloader/prowloader/gcs"
@@ -77,8 +78,7 @@ func TestAssessJobRisks(t *testing.T) {
 	logger := logrus.WithContext(context.TODO())
 	logrus.SetLevel(logrus.DebugLevel)
 
-	// Initialize a standard NewTestsWorker
-	_, _, ntw := standardNewTestsWorker(getDbHandle(t))
+	ntw := StandardNewTestsWorker(getDbHandle(t))
 
 	// Initialize GCS client and look up known job in the bucket
 	bucket := getGcsBucket(t)
@@ -86,24 +86,51 @@ func TestAssessJobRisks(t *testing.T) {
 	jobRuns := aw.buildProwJobRuns(logger, "pr-logs/pull/29512/pull-ci-openshift-origin-master-e2e-aws-ovn-single-node/")
 	numRuns := len(jobRuns)
 	if !assert.True(t, numRuns > 0, "Failed to load job runs") {
-		return // expected to use the first job run as a test subject
-	}
-	if !assert.Equal(t, "1885131315280351232", jobRuns[numRuns-1].Status.BuildID, "Unexpected build ID") {
 		return
 	}
+	if !assert.Equal(t, "1885131315280351232", jobRuns[numRuns-1].Status.BuildID, "Unexpected build ID") {
+		return // expected to use the earliest job run (last in list) as a test subject
+	}
 
-	// Assess job risks
+	// Assess single job risks
 	jobRisks := ntw.assessJobRisks(logger, []*prow.ProwJob{jobRuns[numRuns-1]})
 	if !assert.Equalf(t, numRuns, 2, "expect risks only for the two that were new; saw %+v", jobRisks) {
 		return
 	}
+	risks := []*JobNewTestRisks{{JobName: "some-job", NewTestRisks: jobRisks}}
+	assignRiskLevels(risks)
 	failed, ok := jobRisks["a failed test that has never been seen before"]
 	if assert.True(t, ok, "Should have found failed test") {
 		assert.Equal(t, 1, failed.Failures, "Unexpected number of failures")
+		assert.Equal(t, api.FailureRiskLevelHigh, failed.Level, "Expected high risk for failing test")
 	}
 	passed, ok := jobRisks["a passed test that has never been seen before"]
 	if assert.True(t, ok, "Should have found failed test") {
 		assert.Equal(t, 0, passed.Failures, "Unexpected failure found")
+		assert.Equal(t, api.FailureRiskLevelNone, passed.Level, "Expected no risk for passing test")
+	}
+
+	// Assess multi run risks where new tests go missing
+	if !assert.True(t, numRuns > 1, "Expected at least 2 job runs") {
+		return
+	}
+	ntw.newTestFilter = &skippingNewTestFilter{newTestFilter: ntw.newTestFilter, sawPrevious: map[string]bool{}}
+	jobRisks = ntw.assessJobRisks(logger, jobRuns)
+	failed, ok = jobRisks["a failed test that has never been seen before"]
+	if assert.True(t, ok, "Should have found failed test") {
+		if !assert.True(t, failed.AnyMissing, "Expected test missing in at least one run") {
+			return
+		}
+	}
+	risks = []*JobNewTestRisks{{JobName: "some-job", NewTestRisks: jobRisks}}
+	assignRiskLevels(risks)
+	failed, ok = risks[0].NewTestRisks["a failed test that has never been seen before"]
+	if assert.True(t, ok, "Should have found failed test") {
+		assert.Equal(t, api.FailureRiskLevelHigh, failed.Level, "Expected high risk for failing intermittent test")
+	}
+	passed, ok = risks[0].NewTestRisks["a passed test that has never been seen before"]
+	if assert.True(t, ok, "Should have found passed test") {
+		assert.Equal(t, api.FailureRiskLevelMedium, passed.Level, "Expected medium risk for passing intermittent test")
 	}
 }
 
@@ -253,6 +280,10 @@ func TestUnit_getNewTestsForJobRun(t *testing.T) {
 
 type oneNewTestFilter struct{}
 type errorNewTestFilter struct{}
+type skippingNewTestFilter struct { // alternate skipping or including actual new tests
+	newTestFilter NewTestFilter
+	sawPrevious   map[string]bool
+}
 
 func (m *oneNewTestFilter) IsNewTest(_ *logrus.Entry, test models.ProwJobRunTest) (bool, error) {
 	if test.Test.Name == "test2" {
@@ -262,6 +293,18 @@ func (m *oneNewTestFilter) IsNewTest(_ *logrus.Entry, test models.ProwJobRunTest
 }
 func (m *errorNewTestFilter) IsNewTest(_ *logrus.Entry, _ models.ProwJobRunTest) (bool, error) {
 	return false, errors.New("filter error")
+}
+
+func (ntf *skippingNewTestFilter) IsNewTest(logger *logrus.Entry, test models.ProwJobRunTest) (bool, error) {
+	if isNew, err := ntf.newTestFilter.IsNewTest(logger, test); err != nil {
+		return false, err
+	} else if isNew {
+		ntf.sawPrevious[test.Test.Name] = !ntf.sawPrevious[test.Test.Name] // alternate skipping or including actual new tests
+		if ntf.sawPrevious[test.Test.Name] {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 type jobRunUnfiltered struct{}

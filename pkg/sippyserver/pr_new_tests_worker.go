@@ -47,7 +47,7 @@ type NewTestRisk struct {
 
 type JobNewTestRisks struct {
 	JobName      string
-	NewTestRisks map[string]NewTestRisk // one risk record per new test name
+	NewTestRisks map[string]*NewTestRisk // one risk record per new test name
 }
 
 type NewTestFilter interface {
@@ -99,7 +99,7 @@ func StandardNewTestsWorker(dbc *db.DB) *NewTestsWorker {
 }
 
 // analyzeRisks walks the runs for a PR job looking for new tests and assessing their risk
-func (ntw *NewTestsWorker) analyzeRisks(logger *logrus.Entry, jobs []prJobInfo) (jobRisks []JobNewTestRisks) {
+func (ntw *NewTestsWorker) analyzeRisks(logger *logrus.Entry, jobs []prJobInfo) (jobRisks []*JobNewTestRisks) {
 	for _, jobInfo := range jobs {
 		latestRuns := ntw.jobRunFilter.OnlyLatestSha(logger, jobInfo)
 		if latestRuns == nil {
@@ -112,7 +112,7 @@ func (ntw *NewTestsWorker) analyzeRisks(logger *logrus.Entry, jobs []prJobInfo) 
 		risks := ntw.assessJobRisks(logger, latestRuns)
 		if risks != nil {
 			// now we have the risks for this job, we need to be able to merge them into the overall analysis
-			jobRisks = append(jobRisks, JobNewTestRisks{JobName: jobInfo.name, NewTestRisks: risks})
+			jobRisks = append(jobRisks, &JobNewTestRisks{JobName: jobInfo.name, NewTestRisks: risks})
 		}
 	}
 
@@ -128,7 +128,7 @@ func (ntw *NewTestsWorker) analyzeRisks(logger *logrus.Entry, jobs []prJobInfo) 
 }
 
 // look across the PR's jobs and upgrade risks for new tests that are only found in one job
-func assessCrossJobRisks(jobRisks []JobNewTestRisks, jobs []prJobInfo) {
+func assessCrossJobRisks(jobRisks []*JobNewTestRisks, jobs []prJobInfo) {
 	if len(jobs) < 2 {
 		return // we need at least two jobs to compare new tests
 	}
@@ -151,7 +151,7 @@ func assessCrossJobRisks(jobRisks []JobNewTestRisks, jobs []prJobInfo) {
 	}
 }
 
-func assignRiskLevels(jobRisks []JobNewTestRisks) {
+func assignRiskLevels(jobRisks []*JobNewTestRisks) {
 	for _, jobRisk := range jobRisks {
 		for _, risk := range jobRisk.NewTestRisks {
 			if risk.AnyMissing {
@@ -162,7 +162,7 @@ func assignRiskLevels(jobRisks []JobNewTestRisks) {
 					risk.Reason = fmt.Sprintf("is a new test that was not present in all runs against the current commit, and also failed %d time(s).", risk.Failures)
 				} else {
 					//   - it succeeds or flakes - medium risk (might not be intended for multiple jobs)
-					risk.Level = apiModels.FailureRiskLevelHigh
+					risk.Level = apiModels.FailureRiskLevelMedium
 					risk.Reason = "is a new test, and was only seen in one job."
 				}
 
@@ -236,7 +236,7 @@ func (jrf *pgJobRunFilter) JobFailedEarly(logger *logrus.Entry, run *models.Prow
 	return false
 }
 
-func (ntw *NewTestsWorker) assessJobRisks(logger *logrus.Entry, jobRuns []*prow.ProwJob) map[string]NewTestRisk {
+func (ntw *NewTestsWorker) assessJobRisks(logger *logrus.Entry, jobRuns []*prow.ProwJob) map[string]*NewTestRisk {
 	logger = logger.WithField("func", "assessJobRisks").WithField("runs", len(jobRuns))
 	// find the new tests in all the comparable runs we have for one job
 	newTestsByName := map[string][]NewTest{}
@@ -250,7 +250,7 @@ func (ntw *NewTestsWorker) assessJobRisks(logger *logrus.Entry, jobRuns []*prow.
 	}
 
 	// evaluate this job's run(s) of each new test for risk
-	risksByName := map[string]NewTestRisk{}
+	risksByName := map[string]*NewTestRisk{}
 	for testName, tests := range newTestsByName {
 		risksByName[testName] = makeNewTestRisk(testName, len(jobRuns), tests)
 	}
@@ -259,7 +259,7 @@ func (ntw *NewTestsWorker) assessJobRisks(logger *logrus.Entry, jobRuns []*prow.
 }
 
 // makeNewTestRisk builds the risk record of a new test based on multiple runs of one job
-func makeNewTestRisk(testName string, jobRuns int, tests []NewTest) NewTestRisk {
+func makeNewTestRisk(testName string, jobRuns int, tests []NewTest) *NewTestRisk {
 	// new tests in general are a low risk if they succeed, mainly we want to record their existence
 	risk := NewTestRisk{
 		TestName:   testName,
@@ -284,7 +284,7 @@ func makeNewTestRisk(testName string, jobRuns int, tests []NewTest) NewTestRisk 
 	if len(tests) < jobRuns {
 		risk.AnyMissing = true
 	}
-	return risk
+	return &risk
 }
 
 func (ntw *NewTestsWorker) getNewTestsForJobRun(logger *logrus.Entry, prowjob *prow.ProwJob) (newTests []NewTest, err error) {

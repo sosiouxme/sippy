@@ -478,7 +478,7 @@ func (aw *AnalysisWorker) processPendingPrComment(pendingPrComment models.PullRe
 	log.Debugf("Comment added to pendingComments: %s/%s/%s", pendingComment.org, pendingComment.repo, pendingComment.sha)
 }
 
-func buildComment(sortedAnalyses []RiskAnalysisSummary, risks []JobNewTestRisks, sha string) string {
+func buildComment(sortedAnalyses []RiskAnalysisSummary, risks []*JobNewTestRisks, sha string) string {
 	var sb strings.Builder
 	if len(sortedAnalyses) == 0 {
 		return ""
