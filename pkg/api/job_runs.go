@@ -103,14 +103,14 @@ func JobsRunsReportFromDB(dbc *db.DB, filterOpts *filter.FilterOptions, release 
 
 // FetchJobRun returns a single job run loaded from postgres and populated with the ProwJob and test results.
 // If unknownTests is true, all tests not registered in test_ownerships are loaded; otherwise any failed tests are loaded.
-func FetchJobRun(dbc *db.DB, jobRunID int64, unknownTests bool, logger *log.Entry) (*models.ProwJobRun, int, error) {
+func FetchJobRun(dbc *db.DB, jobRunID int64, unknownTests bool, logger *log.Entry) (*models.ProwJobRun, error) {
 	jobRun := &models.ProwJobRun{}
 
-	// Load the ProwJobRun, ProwJob, and (failed|all) tests:
+	// Load the ProwJobRun, ProwJob, and (failed|unknown) tests:
 	// TODO: we may want to expand to analyzing flakes here in the future
 	q := dbc.DB.Joins("ProwJob")
 	if unknownTests {
-		// this doesn't establish that the tests are new, but it does filter out any that are known from payloads
+		// this doesn't establish that the tests are new, but it does filter out any that sippy registers
 		q = q.Preload("Tests", "test_id not in (select test_id from test_ownerships)")
 	} else { // load only failures
 		q = q.Preload("Tests", "status = ?", sippyprocessingv1.TestStatusFailure)
@@ -119,16 +119,17 @@ func FetchJobRun(dbc *db.DB, jobRunID int64, unknownTests bool, logger *log.Entr
 		Preload("Tests.Suite").
 		First(jobRun, jobRunID)
 	if res.Error != nil {
-		return nil, -1, res.Error
+		return nil, res.Error
 	}
 
 	jobRunTestCount, err := query.JobRunTestCount(dbc, jobRunID)
 	if err != nil { // should be unusual
 		logger.WithError(err).Errorf("Error getting test count for job run %d", jobRunID)
-		jobRunTestCount = len(jobRun.Tests) // has as many as we loaded at least...
+		jobRunTestCount = -1
 	}
+	jobRun.TestCount = jobRunTestCount
 
-	return jobRun, jobRunTestCount, nil
+	return jobRun, nil
 }
 
 // findReleaseMatchJobNames looks for the first matches with a common root job name specific to the
@@ -233,7 +234,7 @@ func joinSegments(segments []string, start int, separator string) string {
 
 // JobRunRiskAnalysis checks the test failures and linked bugs for a job run, and reports back an estimated
 // risk level for each failed test, and the job run overall.
-func JobRunRiskAnalysis(dbc *db.DB, jobRun *models.ProwJobRun, jobRunTestCount int, logger *log.Entry) (apitype.ProwJobRunRiskAnalysis, error) {
+func JobRunRiskAnalysis(dbc *db.DB, jobRun *models.ProwJobRun, logger *log.Entry) (apitype.ProwJobRunRiskAnalysis, error) {
 	logger = logger.WithField("func", "JobRunRiskAnalysis")
 	// If this job is a Presubmit, compare to test results from master, not presubmits, which may perform
 	// worse due to dev code that hasn't merged. We do not presently track presubmits on branches other than
@@ -262,10 +263,10 @@ func JobRunRiskAnalysis(dbc *db.DB, jobRun *models.ProwJobRun, jobRunTestCount i
 	}
 
 	// -1 indicates an error getting the jobRunTest count we will log an error and skip this validation
-	if jobRunTestCount < 0 {
+	if jobRun.TestCount < 0 {
 		logger.Error("Unable to determine job run test count, initializing to historical count")
-		jobRunTestCount = historicalCount
-	} else if jobRunTestCount == 0 {
+		jobRun.TestCount = historicalCount
+	} else if jobRun.TestCount == 0 {
 		// hack since we don't currently get the jobRunTestCount for 4.12 jobs.
 		// If the jobRunTestCount is 0 and we are pre 4.13 set the jobRunTestCount to the historicalCount
 		preSupportVersion, _ := version.NewVersion("4.12")
@@ -273,7 +274,7 @@ func JobRunRiskAnalysis(dbc *db.DB, jobRun *models.ProwJobRun, jobRunTestCount i
 		if err != nil {
 			logger.WithError(err).Errorf("Failed to parse release '%s' for prow job %d", compareRelease, jobRun.ProwJob.ID)
 		} else if preSupportVersion.GreaterThanOrEqual(currentVersion) {
-			jobRunTestCount = historicalCount
+			jobRun.TestCount = historicalCount
 		}
 	}
 
@@ -339,7 +340,7 @@ func JobRunRiskAnalysis(dbc *db.DB, jobRun *models.ProwJobRun, jobRunTestCount i
 		}
 	}
 
-	return runJobRunAnalysis(jobRun, compareRelease, jobRunTestCount, historicalCount, neverStableJob, jobNames, logger, jobNamesTestResultFunc(dbc), variantsTestResultFunc(dbc))
+	return runJobRunAnalysis(jobRun, compareRelease, historicalCount, neverStableJob, jobNames, logger, jobNamesTestResultFunc(dbc), variantsTestResultFunc(dbc))
 }
 
 // testResultsByJobNameFunc is used for injecting db responses in unit tests.
@@ -422,7 +423,7 @@ func variantsTestResultFunc(dbc *db.DB) testResultsByVariantsFunc {
 	}
 }
 
-func runJobRunAnalysis(jobRun *models.ProwJobRun, compareRelease string, jobRunTestCount int, historicalRunTestCount int, neverStableJob bool, jobNames []string, logger *log.Entry,
+func runJobRunAnalysis(jobRun *models.ProwJobRun, compareRelease string, historicalRunTestCount int, neverStableJob bool, jobNames []string, logger *log.Entry,
 	testResultsJobNameFunc testResultsByJobNameFunc, testResultsVariantsFunc testResultsByVariantsFunc) (apitype.ProwJobRunRiskAnalysis, error) {
 
 	logger = logger.WithField("func", "runJobRunAnalysis")
@@ -438,7 +439,7 @@ func runJobRunAnalysis(jobRun *models.ProwJobRun, compareRelease string, jobRunT
 		OverallRisk: apitype.JobFailureRisk{
 			Level:                  apitype.FailureRiskLevelNone,
 			Reasons:                []string{},
-			JobRunTestCount:        jobRunTestCount,
+			JobRunTestCount:        jobRun.TestCount,
 			JobRunTestFailures:     len(jobRun.Tests),
 			NeverStableJob:         neverStableJob,
 			HistoricalRunTestCount: historicalRunTestCount,
@@ -451,10 +452,10 @@ func runJobRunAnalysis(jobRun *models.ProwJobRun, compareRelease string, jobRunT
 	// Return early if we see a large gap in the number of tests:
 	// order matters, if we have 0 tests that ran && 0 tests that failed we
 	// want to compare that here before the 'no test failures' case
-	case jobRunTestCount < (int(float64(historicalRunTestCount) * .75)):
+	case jobRun.TestCount < (int(float64(historicalRunTestCount) * .75)):
 		response.OverallRisk.Level = apitype.FailureRiskLevelIncompleteTests
 		response.OverallRisk.Reasons = append(response.OverallRisk.Reasons,
-			fmt.Sprintf("Tests for this run (%d) are below the historical average (%d): IncompleteTests (not enough tests ran to make a reasonable risk analysis; this could be due to infra, installation, or upgrade problems)", jobRunTestCount, historicalRunTestCount))
+			fmt.Sprintf("Tests for this run (%d) are below the historical average (%d): IncompleteTests (not enough tests ran to make a reasonable risk analysis; this could be due to infra, installation, or upgrade problems)", jobRun.TestCount, historicalRunTestCount))
 		return response, nil
 
 	// Return early if no tests failed in this run:

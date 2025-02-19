@@ -3,11 +3,13 @@ package sippyserver
 import (
 	"errors"
 	"fmt"
-	"github.com/openshift/sippy/pkg/apis/api"
+	sippyApi "github.com/openshift/sippy/pkg/api"
+	apiModels "github.com/openshift/sippy/pkg/apis/api"
 	"github.com/openshift/sippy/pkg/apis/prow"
 	spv1 "github.com/openshift/sippy/pkg/apis/sippyprocessing/v1"
 	"github.com/openshift/sippy/pkg/db"
 	"github.com/openshift/sippy/pkg/db/models"
+	"github.com/openshift/sippy/pkg/db/query"
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -39,7 +41,7 @@ type NewTestRisk struct {
 	Flakes     int  // or flakes
 	OnlyInOne  bool // new test was only seen in one job of multiple for this PR
 	NewTests   []NewTest
-	Level      api.RiskLevel
+	Level      apiModels.RiskLevel
 	Reason     string
 }
 
@@ -49,6 +51,7 @@ type JobNewTestRisks struct {
 }
 
 type NewTestFilter interface {
+	// IsNewTest given a candidate test determines if it is really new with this PR
 	IsNewTest(logger *logrus.Entry, test models.ProwJobRunTest) (bool, error)
 }
 
@@ -60,16 +63,45 @@ type pgNewTestFilter struct {
 	notNewTests sets.Set[uint] // cache of test names that turn out not to be new
 }
 
+type JobRunFilter interface {
+	// OnlyLatestSha filters out runs that are not against the PR's latest sha
+	OnlyLatestSha(entry *logrus.Entry, info prJobInfo) []*prow.ProwJob
+	// JobFailedEarly determines if a run did not get far enough to be included in new test analysis
+	JobFailedEarly(logger *logrus.Entry, run *models.ProwJobRun) bool
+}
+
+type pgJobRunFilter struct {
+	dbc                 *db.DB
+	historicalTestCount map[uint]int // in-memory cache of historical test counts per job id
+}
+
 type NewTestsWorker struct {
 	dbc           *db.DB
 	newTestFilter NewTestFilter
-	fetchJobRun   func(dbc *db.DB, jobRunID int64, unknownTests bool, logger *logrus.Entry) (*models.ProwJobRun, int, error)
+	jobRunFilter  JobRunFilter
+	fetchJobRun   func(dbc *db.DB, jobRunID int64, unknownTests bool, logger *logrus.Entry) (*models.ProwJobRun, error)
+}
+
+func standardNewTestsWorker(dbc *db.DB) (*pgNewTestFilter, *pgJobRunFilter, *NewTestsWorker) {
+	ntf := &pgNewTestFilter{dbc: dbc, notNewTests: sets.Set[uint]{}}
+	jrf := &pgJobRunFilter{dbc: dbc, historicalTestCount: map[uint]int{}}
+	ntw := &NewTestsWorker{
+		dbc:           dbc,
+		newTestFilter: ntf,
+		jobRunFilter:  jrf,
+		fetchJobRun:   sippyApi.FetchJobRun,
+	}
+	return ntf, jrf, ntw
+}
+func StandardNewTestsWorker(dbc *db.DB) *NewTestsWorker {
+	_, _, ntw := standardNewTestsWorker(dbc)
+	return ntw
 }
 
 // analyzeRisks walks the runs for a PR job looking for new tests and assessing their risk
 func (ntw *NewTestsWorker) analyzeRisks(logger *logrus.Entry, jobs []prJobInfo) (jobRisks []JobNewTestRisks) {
 	for _, jobInfo := range jobs {
-		latestRuns := ntw.filterJobRunsForNewTests(logger, jobInfo)
+		latestRuns := ntw.jobRunFilter.OnlyLatestSha(logger, jobInfo)
 		if latestRuns == nil {
 			logger.Infof(
 				"Skipping new test analysis for job %s as there are no completed runs against the PR's shasum %s",
@@ -126,11 +158,11 @@ func assignRiskLevels(jobRisks []JobNewTestRisks) {
 				// 1. Any PR job adds a new test that appears in one run and not another at the same sha - high risk
 				if risk.Failures > 0 {
 					//   - it fails at all - high risk
-					risk.Level = api.FailureRiskLevelHigh
+					risk.Level = apiModels.FailureRiskLevelHigh
 					risk.Reason = fmt.Sprintf("is a new test that was not present in all runs against the current commit, and also failed %d time(s).", risk.Failures)
 				} else {
 					//   - it succeeds or flakes - medium risk (might not be intended for multiple jobs)
-					risk.Level = api.FailureRiskLevelHigh
+					risk.Level = apiModels.FailureRiskLevelHigh
 					risk.Reason = "is a new test, and was only seen in one job."
 				}
 
@@ -138,48 +170,69 @@ func assignRiskLevels(jobRisks []JobNewTestRisks) {
 				// 2. PR adds new test that appears in only a single job and:
 				if risk.Failures > 0 {
 					//   - it fails at all - high risk
-					risk.Level = api.FailureRiskLevelHigh
+					risk.Level = apiModels.FailureRiskLevelHigh
 					risk.Reason = fmt.Sprintf("is a new test, was only seen in one job, and failed %d time(s) against the current commit.", risk.Failures)
 				} else {
 					//   - it succeeds or flakes - medium risk (might not be intended for multiple jobs)
-					risk.Level = api.FailureRiskLevelMedium
+					risk.Level = apiModels.FailureRiskLevelMedium
 					risk.Reason = "is a new test, and was only seen in one job."
 				}
 			} else {
 				// 3. PR adds new test that appears in more than one job and (at latest sha):
 				if risk.Failures > 0 {
 					//   - it fails at all - high risk
-					risk.Level = api.FailureRiskLevelHigh
+					risk.Level = apiModels.FailureRiskLevelHigh
 					risk.Reason = fmt.Sprintf("is a new test that failed %d time(s) against the current commit", risk.Failures)
 				} else {
 					//   - it succeeds or flakes - no risk (only included in list of all new tests)
-					risk.Level = api.FailureRiskLevelNone
+					risk.Level = apiModels.FailureRiskLevelNone
 				}
 			}
 		}
 	}
 }
 
-func (ntw *NewTestsWorker) filterJobRunsForNewTests(logger *logrus.Entry, jobInfo prJobInfo) []*prow.ProwJob {
-	// we need up to 2 runs that ran against the PR's shasum (do not flag problems from different shasums)
+func (jrf *pgJobRunFilter) OnlyLatestSha(logger *logrus.Entry, jobInfo prJobInfo) []*prow.ProwJob {
+	// we need any runs that ran against the PR's shasum (do not flag problems from different shasums)
+	logger = logger.WithField("func", "OnlyLatestSha").WithField("job", jobInfo.name).WithField("sha", jobInfo.prShaSum)
 	var latestRuns []*prow.ProwJob
 	for idx, run := range jobInfo.prowJobRuns {
-		if run.Spec.Refs.Pulls[0].SHA != jobInfo.prShaSum {
+		if sha := run.Spec.Refs.Pulls[0].SHA; sha != jobInfo.prShaSum {
+			logger.Debugf("Excluding run %s against sha %s", run.Status.BuildID, sha)
 			continue
 		}
-		if ntw.isIncompleteRun(run) {
-			continue
-		}
-		latestRuns = append(latestRuns, &jobInfo.prowJobRuns[idx])
+		logger.Debugf("Including run %s", run.Status.BuildID)
+		latestRuns = append(latestRuns, jobInfo.prowJobRuns[idx])
 	}
 	return latestRuns
 }
 
-// filter out incomplete runs (with significantly fewer tests than usual -- not related to ProwJob status);
-// when looking for new tests, runs that didn't get to all the tests will muddy the analysis.
+// JobFailedEarly filters out runs with significantly fewer tests than usual;
+// when looking for new tests, runs that broke before running all the tests will muddy the analysis.
 // such runs should be left to risk analysis for comment.
-func (ntw *NewTestsWorker) isIncompleteRun(run prow.ProwJob) bool {
-	// TODO
+// if any errors occur, return true so the run is not included in the new test analysis.
+func (jrf *pgJobRunFilter) JobFailedEarly(logger *logrus.Entry, run *models.ProwJobRun) bool {
+	logger = logger.WithField("func", "JobFailedEarly").WithField("job", run.ProwJob.Name).WithField("run", run.ProwJobID)
+	if run.TestCount <= 0 { // this can in theory happen when building the run, filter these out
+		logger.Warn("Failed to count tests earlier, ignoring this run")
+		return true
+	}
+	// figure out how many runs this job usually has
+	historicalCount, ok := jrf.historicalTestCount[run.ProwJob.ID]
+	if !ok {
+		var err error
+		historicalCount, err = query.ProwJobHistoricalTestCounts(jrf.dbc, run.ProwJobID)
+		if err != nil {
+			logger.WithError(err).Error("Error determining historical job test count, ignoring this run")
+			return true
+		}
+		jrf.historicalTestCount[run.ProwJob.ID] = historicalCount
+	}
+
+	if run.TestCount*100 < historicalCount*75 {
+		logger.Infof("Much fewer tests ran (%d) than historically (%d), ignoring this run", run.TestCount, historicalCount)
+		return true
+	}
 	return false
 }
 
@@ -197,7 +250,7 @@ func (ntw *NewTestsWorker) assessJobRisks(logger *logrus.Entry, jobRuns []*prow.
 	}
 
 	// evaluate this job's run(s) of each new test for risk
-	risksByName := make(map[string]NewTestRisk, 0)
+	risksByName := map[string]NewTestRisk{}
 	for testName, tests := range newTestsByName {
 		risksByName[testName] = makeNewTestRisk(testName, len(jobRuns), tests)
 	}
@@ -240,7 +293,7 @@ func (ntw *NewTestsWorker) getNewTestsForJobRun(logger *logrus.Entry, prowjob *p
 	if jobRunIntID, err := strconv.ParseInt(prowjob.Status.BuildID, 10, 64); err != nil {
 		logger.WithError(err).Error("Failed to parse jobRunId id") // this would be exceedingly strange
 		return nil, err
-	} else if jobRun, _, err = ntw.fetchJobRun(ntw.dbc, jobRunIntID, true, logger); err != nil {
+	} else if jobRun, err = ntw.fetchJobRun(ntw.dbc, jobRunIntID, true, logger); err != nil {
 		// RecordNotFound can be expected if the jobRunId job isn't in sippy yet. log any other error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			logger.Debug("Job run not found")
@@ -248,6 +301,8 @@ func (ntw *NewTestsWorker) getNewTestsForJobRun(logger *logrus.Entry, prowjob *p
 			logger.WithError(err).Error("Error fetching job run")
 		}
 		return nil, err
+	} else if ntw.jobRunFilter.JobFailedEarly(logger, jobRun) {
+		return nil, errors.New("job run failed early, ignore")
 	}
 	for _, test := range jobRun.Tests {
 		if isNew, err := ntw.newTestFilter.IsNewTest(logger, test); err != nil {

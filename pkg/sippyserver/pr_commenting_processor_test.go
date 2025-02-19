@@ -91,7 +91,6 @@ func TestMatchPriorRiskAnalysisTest(t *testing.T) {
 }
 
 func TestAnalysisWorker(t *testing.T) {
-	t.Skip()
 	// initialize AnalysisWorker
 	dbc := getDbHandle(t)
 	gcsBucket := getGcsBucket(t)
@@ -102,12 +101,14 @@ func TestAnalysisWorker(t *testing.T) {
 	pendingWork := make(chan models.PullRequestComment, 1)
 	defer close(pendingWork)
 
+	ntw := StandardNewTestsWorker(dbc)
 	analysisWorker := AnalysisWorker{
 		riskAnalysisLocator: gcs.GetDefaultRiskAnalysisSummaryFile(),
 		dbc:                 dbc,
 		gcsBucket:           gcsBucket,
 		pendingAnalysis:     pendingWork,
 		pendingComments:     pendingComments,
+		newTestsWorker:      ntw,
 	}
 
 	// prPendingComment := models.PullRequestComment{Org: "openshift", Repo: "origin", PullNumber: 28075, SHA: "79d237196d93eb92ed58c66497d8718259264226", ProwJobRoot: "pr-logs/pull/28075/"}

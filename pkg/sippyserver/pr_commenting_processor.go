@@ -72,7 +72,7 @@ func NewWorkProcessor(dbc *db.DB, gcsBucket *storage.BucketHandle, commentAnalys
 		commentUpdaterRate:     commentUpdaterRate,
 		commentAnalysisWorkers: commentAnalysisWorkers,
 		dryRunOnly:             dryRunOnly,
-		newTestFilter:          &pgNewTestFilter{},
+		newTestsWorker:         StandardNewTestsWorker(dbc),
 	}
 	return wp
 }
@@ -85,7 +85,7 @@ type WorkProcessor struct {
 	gcsBucket              *storage.BucketHandle
 	ghCommenter            *commenter.GitHubCommenter
 	dryRunOnly             bool
-	newTestFilter          NewTestFilter
+	newTestsWorker         *NewTestsWorker
 }
 
 type PendingComment struct {
@@ -160,11 +160,7 @@ func (wp *WorkProcessor) Run(ctx context.Context) {
 			gcsBucket:           wp.gcsBucket,
 			pendingAnalysis:     pendingWork,
 			pendingComments:     pendingComments,
-			newTestsWorker: &NewTestsWorker{
-				dbc:           wp.dbc,
-				newTestFilter: wp.newTestFilter,
-				fetchJobRun:   jobQueries.FetchJobRun,
-			},
+			newTestsWorker:      wp.newTestsWorker,
 		}
 		go analysisWorker.Run()
 	}
@@ -563,11 +559,12 @@ func buildComment(sortedAnalyses []RiskAnalysisSummary, risks []JobNewTestRisks,
 
 type prJobInfo struct {
 	name          string
-	prShaSum      string         // sha of the PR at the time it was loaded
-	bucketPrefix  string         // where the job is found in the GCS bucket
-	latestRunId   string         // ID of the latest run
-	latestRunPath string         // path to the latest run in the GCS bucket
-	prowJobRuns   []prow.ProwJob // sorted list of ProwJobs (runs for this job)
+	jobId         string          // sippy ID of the job itself
+	prShaSum      string          // sha of the PR at the time it was loaded
+	bucketPrefix  string          // where the job is found in the GCS bucket
+	latestRunId   string          // sippy ID of the latest run
+	latestRunPath string          // path to the latest run in the GCS bucket
+	prowJobRuns   []*prow.ProwJob // sorted list of ProwJobs (runs for this job)
 }
 
 // getPrJobsIfFinished walks the GCS path for this PR to find the most recent run of each PR job;
@@ -688,14 +685,14 @@ func (aw *AnalysisWorker) buildPRJobRiskAnalysis(logger *log.Entry, jobs []prJob
 
 // buildProwJobRuns Walks the GCS path for this job to find its job runs,
 // returning a list of completed runs sorted by decreasing completion time
-func (aw *AnalysisWorker) buildProwJobRuns(logger *log.Entry, prJobRoot string) []prow.ProwJob {
+func (aw *AnalysisWorker) buildProwJobRuns(logger *log.Entry, prJobRoot string) []*prow.ProwJob {
 	// get the list of objects one level down from our root
 	it := aw.gcsBucket.Objects(context.Background(), &storage.Query{
 		Prefix:    prJobRoot,
 		Delimiter: "/",
 	})
 
-	jobRuns := make([]prow.ProwJob, 0)
+	jobRuns := make([]*prow.ProwJob, 0)
 	lookup := gcs.NewGCSJobRun(aw.gcsBucket, "") // dummy instance to look up bucket content
 
 	for {
@@ -731,10 +728,10 @@ func (aw *AnalysisWorker) buildProwJobRuns(logger *log.Entry, prJobRoot string) 
 			continue // the build id should match the folder name, else WTF?
 		}
 
-		jobRuns = append(jobRuns, pj)
+		jobRuns = append(jobRuns, &pj)
 	}
 
-	slices.SortFunc(jobRuns, func(a, b prow.ProwJob) int {
+	slices.SortFunc(jobRuns, func(a, b *prow.ProwJob) int {
 		return b.Status.CompletionTime.Compare(*a.Status.CompletionTime)
 	})
 	return jobRuns
@@ -745,12 +742,12 @@ func (aw *AnalysisWorker) getRiskSummary(jobRunID, jobRunIDPath string, priorRis
 
 	if jobRunIntID, err := strconv.ParseInt(jobRunID, 10, 64); err != nil {
 		log.WithError(err).Errorf("Failed to parse jobRunId id: %s for: %s", jobRunID, jobRunIDPath)
-	} else if jobRun, jobRunTestCount, err := jobQueries.FetchJobRun(aw.dbc, jobRunIntID, false, logger); err != nil {
+	} else if jobRun, err := jobQueries.FetchJobRun(aw.dbc, jobRunIntID, false, logger); err != nil {
 		// RecordNotFound can be expected if the jobRunId job isn't in sippy yet. log any other error
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			logger.WithError(err).Errorf("Error fetching job run for: %s", jobRunIDPath)
 		}
-	} else if ra, err := jobQueries.JobRunRiskAnalysis(aw.dbc, jobRun, jobRunTestCount, logger); err != nil {
+	} else if ra, err := jobQueries.JobRunRiskAnalysis(aw.dbc, jobRun, logger); err != nil {
 		logger.WithError(err).Errorf("Error querying risk analysis for: %s", jobRunIDPath)
 	} else {
 		// query succeeded so use the riskAnalysis we got

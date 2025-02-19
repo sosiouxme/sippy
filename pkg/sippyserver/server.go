@@ -973,7 +973,6 @@ func (s *Server) jsonJobRunRiskAnalysis(w http.ResponseWriter, req *http.Request
 	logger := log.WithField("func", "jsonJobRunRiskAnalysis")
 
 	jobRun := &models.ProwJobRun{}
-	var jobRunTestCount int
 
 	// API path one where we return a risk analysis for a prow job run ID we already know about:
 	jobRunIDStr := req.URL.Query().Get("prow_job_run_id")
@@ -988,7 +987,7 @@ func (s *Server) jsonJobRunRiskAnalysis(w http.ResponseWriter, req *http.Request
 		logger = logger.WithField("jobRunID", jobRunID)
 
 		// lookup prowjob and run count
-		jobRun, jobRunTestCount, err = api.FetchJobRun(s.db, jobRunID, false, logger)
+		jobRun, err = api.FetchJobRun(s.db, jobRunID, false, logger)
 
 		if err != nil {
 			failureResponse(w, http.StatusBadRequest, err.Error())
@@ -1020,8 +1019,6 @@ func (s *Server) jsonJobRunRiskAnalysis(w http.ResponseWriter, req *http.Request
 			return
 		}
 
-		jobRunTestCount = jobRun.TestCount
-
 		// We don't expect the caller to fully populate the ProwJob, just its name;
 		// override the input by looking up the actual ProwJob so we have access to release and variants.
 		job := &models.ProwJob{}
@@ -1048,7 +1045,7 @@ func (s *Server) jsonJobRunRiskAnalysis(w http.ResponseWriter, req *http.Request
 	}
 
 	logger.Infof("job run = %+v", *jobRun)
-	result, err := api.JobRunRiskAnalysis(s.db, jobRun, jobRunTestCount, logger)
+	result, err := api.JobRunRiskAnalysis(s.db, jobRun, logger)
 	if err != nil {
 		failureResponse(w, http.StatusBadRequest, err.Error())
 		return
