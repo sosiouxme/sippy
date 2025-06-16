@@ -726,7 +726,7 @@ func NewBaseTestDetailsQueryGenerator(logger log.FieldLogger, client *bqcachedcl
 	}
 }
 
-func (b *baseTestDetailsQueryGenerator) QueryTestStatus(ctx context.Context) (crtype.TestJobRunStatuses, []error) {
+func (b *baseTestDetailsQueryGenerator) QueryTestStatus(ctx context.Context) (bq.TestJobRunStatuses, []error) {
 	commonQuery, groupByQuery, queryParameters := buildTestDetailsQuery(
 		b.client,
 		b.TestIDOpts,
@@ -753,7 +753,7 @@ func (b *baseTestDetailsQueryGenerator) QueryTestStatus(ctx context.Context) (cr
 	}...)
 
 	baseStatus, errs := fetchJobRunTestStatusResults(ctx, b.logger, baseQuery, b.ReqOptions)
-	return crtype.TestJobRunStatuses{BaseStatus: baseStatus}, errs
+	return bq.TestJobRunStatuses{BaseStatus: baseStatus}, errs
 }
 
 // sampleTestDetailsQueryGenerator generates the query we use for the sample on the test details page.
@@ -793,7 +793,7 @@ func NewSampleTestDetailsQueryGenerator(
 	}
 }
 
-func (s *sampleTestDetailsQueryGenerator) QueryTestStatus(ctx context.Context) (crtype.TestJobRunStatuses, []error) {
+func (s *sampleTestDetailsQueryGenerator) QueryTestStatus(ctx context.Context) (bq.TestJobRunStatuses, []error) {
 
 	commonQuery, groupByQuery, queryParameters := buildTestDetailsQuery(
 		s.client,
@@ -852,7 +852,7 @@ func (s *sampleTestDetailsQueryGenerator) QueryTestStatus(ctx context.Context) (
 
 	sampleStatus, errs := fetchJobRunTestStatusResults(ctx, log.WithField("generator", "SampleQuery"), sampleQuery, s.ReqOptions)
 
-	return crtype.TestJobRunStatuses{SampleStatus: sampleStatus}, errs
+	return bq.TestJobRunStatuses{SampleStatus: sampleStatus}, errs
 }
 
 // logQueryWithParamsReplaced is intended to give developers a query they can copy out of logs and work with directly,

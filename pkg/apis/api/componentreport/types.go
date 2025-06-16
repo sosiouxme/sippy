@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"cloud.google.com/go/civil"
-	"github.com/openshift/sippy/pkg/apis/api/componentreport/bq"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/test"
 	crtier1 "github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
 	"github.com/openshift/sippy/pkg/db/models"
@@ -124,20 +123,6 @@ type TestDetailsJobRunStats struct {
 	// For the majority of the tests, there is only one junit. But
 	// there are cases multiple junits are generated for the same test.
 	TestStats test.Stats `json:"test_stats"`
-}
-
-// TestJobRunStatuses contains the rows returned from a test details query organized by base and sample,
-// essentially the actual job runs and their status that was used to calculate this
-// report.
-// Status fields map prowjob name to each row result we received for that job.
-type TestJobRunStatuses struct {
-	BaseStatus map[string][]bq.TestJobRunRows `json:"base_status"`
-	// TODO: This could be a little cleaner if we did status.BaseStatuses plural and tied them to a release,
-	// allowing the release fallback mechanism to stay a little cleaner. That would more clearly
-	// keep middleware details out of the main codebase.
-	BaseOverrideStatus map[string][]bq.TestJobRunRows `json:"base_override_status"`
-	SampleStatus       map[string][]bq.TestJobRunRows `json:"sample_status"`
-	GeneratedAt        *time.Time                     `json:"generated_at"`
 }
 
 type TestVariants struct {

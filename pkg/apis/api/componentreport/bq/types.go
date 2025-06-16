@@ -74,3 +74,17 @@ type TestJobRunRows struct {
 	JiraComponent   string   `bigquery:"jira_component"`
 	JiraComponentID *big.Rat `bigquery:"jira_component_id"`
 }
+
+// TestJobRunStatuses contains the rows returned from a test details query organized by base and sample,
+// essentially the actual job runs and their status that was used to calculate this
+// report.
+// Status fields map prowjob name to each row result we received for that job.
+type TestJobRunStatuses struct {
+	BaseStatus map[string][]TestJobRunRows `json:"base_status"`
+	// TODO: This could be a little cleaner if we did status.BaseStatuses plural and tied them to a release,
+	// allowing the release fallback mechanism to stay a little cleaner. That would more clearly
+	// keep middleware details out of the main codebase.
+	BaseOverrideStatus map[string][]TestJobRunRows `json:"base_override_status"`
+	SampleStatus       map[string][]TestJobRunRows `json:"sample_status"`
+	GeneratedAt        *time.Time                  `json:"generated_at"`
+}

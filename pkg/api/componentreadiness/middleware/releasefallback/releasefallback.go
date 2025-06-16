@@ -260,12 +260,12 @@ func (r *ReleaseFallback) QueryTestDetails(ctx context.Context, wg *sync.WaitGro
 					testIDOpts,
 				)
 
-				jobRunTestStatus, errs := api.GetDataFromCacheOrGenerate[crtype.TestJobRunStatuses](
+				jobRunTestStatus, errs := api.GetDataFromCacheOrGenerate[bq.TestJobRunStatuses](
 					ctx,
 					r.client.Cache, r.reqOptions.CacheOption,
 					api.GetPrefixedCacheKey("BaseJobRunTestStatus~", generator),
 					generator.QueryTestStatus,
-					crtype.TestJobRunStatuses{})
+					bq.TestJobRunStatuses{})
 
 				for _, err := range errs {
 					errCh <- err
@@ -303,7 +303,7 @@ func (r *ReleaseFallback) QueryTestDetails(ctx context.Context, wg *sync.WaitGro
 
 }
 
-func (r *ReleaseFallback) PreTestDetailsAnalysis(testKey test.KeyWithVariants, status *crtype.TestJobRunStatuses) error {
+func (r *ReleaseFallback) PreTestDetailsAnalysis(testKey test.KeyWithVariants, status *bq.TestJobRunStatuses) error {
 	// Add our baseOverrideStatus to the report, unfortunate hack we have to live with for now.
 	testKeyStr := testKey.KeyOrDie()
 	if _, ok := r.baseOverrideStatus[testKeyStr]; ok {

@@ -199,6 +199,6 @@ func findVariant(variantName string, testReg *models.TestRegression) string {
 	return ""
 }
 
-func (r *RegressionTracker) PreTestDetailsAnalysis(testKey test.KeyWithVariants, status *crtype.TestJobRunStatuses) error {
+func (r *RegressionTracker) PreTestDetailsAnalysis(testKey test.KeyWithVariants, status *bq.TestJobRunStatuses) error {
 	return nil
 }
