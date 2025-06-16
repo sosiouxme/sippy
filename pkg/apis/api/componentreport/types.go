@@ -11,15 +11,6 @@ import (
 	"github.com/openshift/sippy/pkg/db/models"
 )
 
-type ReleaseTestMap struct {
-	crtier1.Release
-	Tests map[string]bq.TestStatus
-}
-
-type FallbackReleases struct {
-	Releases map[string]ReleaseTestMap
-}
-
 type ComponentReport struct {
 	Rows        []ReportRow `json:"rows,omitempty"`
 	GeneratedAt *time.Time  `json:"generated_at"`
