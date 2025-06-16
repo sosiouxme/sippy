@@ -3,8 +3,8 @@ package componentreport
 import (
 	"time"
 
+	crtier1 "github.com/openshift/sippy/pkg/apis/api/componentreport/test"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/testdetails"
-	crtier1 "github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
 )
 
 type ComponentReport struct {

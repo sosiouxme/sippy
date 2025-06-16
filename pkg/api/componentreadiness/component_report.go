@@ -23,7 +23,6 @@ import (
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/requestoptions"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/test"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/testdetails"
-	"github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/api/iterator"
@@ -94,14 +93,14 @@ func GetComponentTestVariantsFromBigQuery(ctx context.Context, client *bqcachedc
 		api.GetPrefixedCacheKey("TestVariants~", generator), generator.GenerateVariants, TestVariants{})
 }
 
-func GetJobVariantsFromBigQuery(ctx context.Context, client *bqcachedclient.Client) (tier1.JobVariants,
+func GetJobVariantsFromBigQuery(ctx context.Context, client *bqcachedclient.Client) (test.JobVariants,
 	[]error) {
 	generator := ComponentReportGenerator{
 		client: client,
 	}
 
-	return api.GetDataFromCacheOrGenerate[tier1.JobVariants](ctx, client.Cache, cache.RequestOptions{},
-		api.GetPrefixedCacheKey("TestAllVariants~", generator), generator.GenerateJobVariants, tier1.JobVariants{})
+	return api.GetDataFromCacheOrGenerate[test.JobVariants](ctx, client.Cache, cache.RequestOptions{},
+		api.GetPrefixedCacheKey("TestAllVariants~", generator), generator.GenerateJobVariants, test.JobVariants{})
 }
 
 func GetComponentReportFromBigQuery(
@@ -149,8 +148,8 @@ func (c *ComponentReportGenerator) PostAnalysis(report *crtype.ComponentReport) 
 				// good because we know the cell status can't be improved or missing basis/sample.
 				// All we need to do now is track the lowest (i.e. worst) status we see after PostAnalysis,
 				// and make that our new cell status.
-				var initialStatus tier1.Status
-				testKey := tier1.ReportTestIdentification{
+				var initialStatus test.Status
+				testKey := test.ReportTestIdentification{
 					RowIdentification:    col.RegressedTests[rti].RowIdentification,
 					ColumnIdentification: col.RegressedTests[rti].ColumnIdentification,
 				}
@@ -266,9 +265,9 @@ func (c *ComponentReportGenerator) GenerateVariants(ctx context.Context) (TestVa
 	}, errs
 }
 
-func (c *ComponentReportGenerator) GenerateJobVariants(ctx context.Context) (tier1.JobVariants, []error) {
+func (c *ComponentReportGenerator) GenerateJobVariants(ctx context.Context) (test.JobVariants, []error) {
 	errs := []error{}
-	variants := tier1.JobVariants{Variants: map[string][]string{}}
+	variants := test.JobVariants{Variants: map[string][]string{}}
 	queryString := fmt.Sprintf(`SELECT variant_name, ARRAY_AGG(DISTINCT variant_value ORDER BY variant_value) AS variant_values
 					FROM
 						%s.job_variants
@@ -366,7 +365,7 @@ func (c *ComponentReportGenerator) GenerateReport(ctx context.Context) (crtype.C
 
 // getBaseQueryStatus builds the basis query, executes it, and returns the basis test status.
 func (c *ComponentReportGenerator) getBaseQueryStatus(ctx context.Context,
-	allJobVariants tier1.JobVariants) (map[string]bq.TestStatus, []error) {
+	allJobVariants test.JobVariants) (map[string]bq.TestStatus, []error) {
 
 	generator := query.NewBaseQueryGenerator(c.client, c.ReqOptions, allJobVariants)
 
@@ -383,7 +382,7 @@ func (c *ComponentReportGenerator) getBaseQueryStatus(ctx context.Context,
 // getSampleQueryStatus builds the sample query, executes it, and returns the sample test status.
 func (c *ComponentReportGenerator) getSampleQueryStatus(
 	ctx context.Context,
-	allJobVariants tier1.JobVariants,
+	allJobVariants test.JobVariants,
 	includeVariants map[string][]string,
 	start, end time.Time,
 	junitTable string) (map[string]bq.TestStatus, []error) {
@@ -496,7 +495,7 @@ func (c *ComponentReportGenerator) getTestStatusFromBigQuery(ctx context.Context
 // fork additional sample queries for the overrides
 func (c *ComponentReportGenerator) goRunOverrideSampleQueries(
 	ctx context.Context, wg *sync.WaitGroup, fLog *log.Entry,
-	allJobVariants tier1.JobVariants,
+	allJobVariants test.JobVariants,
 	sampleStatusCh chan map[string]bq.TestStatus,
 	errCh chan error,
 ) {
@@ -623,8 +622,8 @@ func testToComponentAndCapability(_ test.KeyWithVariants, stats bq.TestStatus) (
 
 // getRowColumnIdentifications defines the rows and columns since they are variable. For rows, different pages have different row titles (component, capability etc)
 // Columns titles depends on the columnGroupBy parameter user requests. A particular test can belong to multiple rows of different capabilities.
-func (c *ComponentReportGenerator) getRowColumnIdentifications(testIDStr string, stats bq.TestStatus) ([]tier1.RowIdentification, []tier1.ColumnID, error) {
-	var test test.KeyWithVariants
+func (c *ComponentReportGenerator) getRowColumnIdentifications(testIDStr string, stats bq.TestStatus) ([]test.RowIdentification, []test.ColumnID, error) {
+	var testKey test.KeyWithVariants
 	columnGroupByVariants := c.ReqOptions.VariantOption.ColumnGroupBy
 	// We show column groups by DBGroupBy only for the last page before test details
 	if len(c.ReqOptions.TestIDOptions) > 0 && c.ReqOptions.TestIDOptions[0].TestID != "" {
@@ -632,13 +631,13 @@ func (c *ComponentReportGenerator) getRowColumnIdentifications(testIDStr string,
 	}
 
 	// TODO: is this too slow?
-	err := json.Unmarshal([]byte(testIDStr), &test)
+	err := json.Unmarshal([]byte(testIDStr), &testKey)
 	if err != nil {
-		return []tier1.RowIdentification{}, []tier1.ColumnID{}, err
+		return []test.RowIdentification{}, []test.ColumnID{}, err
 	}
 
-	testComponent, testCapabilities := componentAndCapabilityGetter(test, stats)
-	rows := []tier1.RowIdentification{}
+	testComponent, testCapabilities := componentAndCapabilityGetter(testKey, stats)
+	rows := []test.RowIdentification{}
 	// First Page with no component requested
 	requestedComponent, requestedCapability, requestedTestID := "", "", ""
 	if len(c.ReqOptions.TestIDOptions) > 0 {
@@ -650,13 +649,13 @@ func (c *ComponentReportGenerator) getRowColumnIdentifications(testIDStr string,
 
 	if requestedComponent == "" {
 		// No component filter specified for this report, include a row for all components:
-		rows = append(rows, tier1.RowIdentification{Component: testComponent})
+		rows = append(rows, test.RowIdentification{Component: testComponent})
 	} else if requestedComponent == testComponent {
 		// A component filter was specified and this test matches that component:
 
-		row := tier1.RowIdentification{
+		row := test.RowIdentification{
 			Component: testComponent,
-			TestID:    test.TestID,
+			TestID:    testKey.TestID,
 			TestName:  stats.TestName,
 			TestSuite: stats.TestSuite,
 		}
@@ -676,38 +675,38 @@ func (c *ComponentReportGenerator) getRowColumnIdentifications(testIDStr string,
 						break
 					}
 				} else {
-					rows = append(rows, tier1.RowIdentification{Component: testComponent, Capability: capability})
+					rows = append(rows, test.RowIdentification{Component: testComponent, Capability: capability})
 				}
 			}
 		}
 	}
 
-	columns := []tier1.ColumnID{}
-	column := tier1.ColumnIdentification{Variants: map[string]string{}}
-	for key, value := range test.Variants {
+	columns := []test.ColumnID{}
+	column := test.ColumnIdentification{Variants: map[string]string{}}
+	for key, value := range testKey.Variants {
 		if columnGroupByVariants.Has(key) {
 			column.Variants[key] = value
 		}
 	}
 	columnKeyBytes, err := json.Marshal(column)
 	if err != nil {
-		return []tier1.RowIdentification{}, []tier1.ColumnID{}, err
+		return []test.RowIdentification{}, []test.ColumnID{}, err
 	}
-	columns = append(columns, tier1.ColumnID(columnKeyBytes))
+	columns = append(columns, test.ColumnID(columnKeyBytes))
 
 	return rows, columns, nil
 }
 
 type cellStatus struct {
-	status         tier1.Status
+	status         test.Status
 	regressedTests []crtype.ReportTestSummary
 }
 
-func getNewCellStatus(testID tier1.ReportTestIdentification, testStats testdetails.TestComparison, existingCellStatus *cellStatus) cellStatus {
+func getNewCellStatus(testID test.ReportTestIdentification, testStats testdetails.TestComparison, existingCellStatus *cellStatus) cellStatus {
 	var newCellStatus cellStatus
 	if existingCellStatus != nil {
-		if (testStats.ReportStatus < tier1.NotSignificant && testStats.ReportStatus < existingCellStatus.status) ||
-			(existingCellStatus.status == tier1.NotSignificant && testStats.ReportStatus == tier1.SignificantImprovement) {
+		if (testStats.ReportStatus < test.NotSignificant && testStats.ReportStatus < existingCellStatus.status) ||
+			(existingCellStatus.status == test.NotSignificant && testStats.ReportStatus == test.SignificantImprovement) {
 			// We want to show the significant improvement if assessment is not regression
 			newCellStatus.status = testStats.ReportStatus
 		} else {
@@ -717,7 +716,7 @@ func getNewCellStatus(testID tier1.ReportTestIdentification, testStats testdetai
 	} else {
 		newCellStatus.status = testStats.ReportStatus
 	}
-	if testStats.ReportStatus < tier1.MissingSample {
+	if testStats.ReportStatus < test.MissingSample {
 		rt := crtype.ReportTestSummary{
 			ReportTestIdentification: testID,
 			TestComparison:           testStats,
@@ -728,14 +727,14 @@ func getNewCellStatus(testID tier1.ReportTestIdentification, testStats testdetai
 }
 
 func updateCellStatus(
-	rowIdentifications []tier1.RowIdentification,
-	columnIdentifications []tier1.ColumnID,
-	testID tier1.ReportTestIdentification,
+	rowIdentifications []test.RowIdentification,
+	columnIdentifications []test.ColumnID,
+	testID test.ReportTestIdentification,
 	testStats testdetails.TestComparison,
 	// use the inputs above to update the maps below (golang passes maps by reference)
-	status map[tier1.RowIdentification]map[tier1.ColumnID]cellStatus,
-	allRows map[tier1.RowIdentification]struct{},
-	allColumns map[tier1.ColumnID]struct{},
+	status map[test.RowIdentification]map[test.ColumnID]cellStatus,
+	allRows map[test.RowIdentification]struct{},
+	allColumns map[test.ColumnID]struct{},
 ) {
 	for _, columnIdentification := range columnIdentifications {
 		if _, ok := allColumns[columnIdentification]; !ok {
@@ -754,7 +753,7 @@ func updateCellStatus(
 		}
 		row, ok := status[rowIdentification]
 		if !ok {
-			row = map[tier1.ColumnID]cellStatus{}
+			row = map[test.ColumnID]cellStatus{}
 			for _, columnIdentification := range columnIdentifications {
 				row[columnIdentification] = getNewCellStatus(testID, testStats, nil)
 				status[rowIdentification] = row
@@ -799,10 +798,10 @@ func initTestAnalysisStruct(
 
 func (c *ComponentReportGenerator) generateComponentTestReport(basisStatusMap, sampleStatusMap map[string]bq.TestStatus) (crtype.ComponentReport, error) {
 	// aggregatedStatus is the aggregated status based on the requested rows and columns
-	aggregatedStatus := map[tier1.RowIdentification]map[tier1.ColumnID]cellStatus{}
+	aggregatedStatus := map[test.RowIdentification]map[test.ColumnID]cellStatus{}
 	// allRows and allColumns are used to make sure rows are ordered and all rows have the same columns in the same order
-	allRows := map[tier1.RowIdentification]struct{}{}
-	allColumns := map[tier1.ColumnID]struct{}{}
+	allRows := map[test.RowIdentification]struct{}{}
+	allColumns := map[test.ColumnID]struct{}{}
 
 	// merge basis and sample map keys and evaluate each key once
 	keySet := sets.NewString(slices.Collect(maps.Keys(basisStatusMap))...)
@@ -825,7 +824,7 @@ func (c *ComponentReportGenerator) generateComponentTestReport(basisStatusMap, s
 		if !sampleThere {
 			// we use this to find tests associated with the basis that we don't see now in sample,
 			// meaning they have been renamed or removed. no further analysis is needed.
-			cellReport.ReportStatus = tier1.MissingSample
+			cellReport.ReportStatus = test.MissingSample
 		} else {
 			// Initialize the test analysis before we start passing it around to the middleware
 			if basisThere {
@@ -862,8 +861,8 @@ func (c *ComponentReportGenerator) generateComponentTestReport(basisStatusMap, s
 	return crtype.ComponentReport{Rows: rows}, nil
 }
 
-func sortRowIdentifications(allRows map[tier1.RowIdentification]struct{}) []tier1.RowIdentification {
-	sortedRows := []tier1.RowIdentification{}
+func sortRowIdentifications(allRows map[test.RowIdentification]struct{}) []test.RowIdentification {
+	sortedRows := []test.RowIdentification{}
 	for rowID := range allRows {
 		sortedRows = append(sortedRows, rowID)
 	}
@@ -883,8 +882,8 @@ func sortRowIdentifications(allRows map[tier1.RowIdentification]struct{}) []tier
 	return sortedRows
 }
 
-func sortColumnIdentifications(allColumns map[tier1.ColumnID]struct{}) []tier1.ColumnID {
-	sortedColumns := []tier1.ColumnID{}
+func sortColumnIdentifications(allColumns map[test.ColumnID]struct{}) []test.ColumnID {
+	sortedColumns := []test.ColumnID{}
 	for columnID := range allColumns {
 		sortedColumns = append(sortedColumns, columnID)
 	}
@@ -894,7 +893,7 @@ func sortColumnIdentifications(allColumns map[tier1.ColumnID]struct{}) []tier1.C
 	return sortedColumns
 }
 
-func buildReport(sortedRows []tier1.RowIdentification, sortedColumns []tier1.ColumnID, aggregatedStatus map[tier1.RowIdentification]map[tier1.ColumnID]cellStatus) ([]crtype.ReportRow, error) {
+func buildReport(sortedRows []test.RowIdentification, sortedColumns []test.ColumnID, aggregatedStatus map[test.RowIdentification]map[test.ColumnID]cellStatus) ([]crtype.ReportRow, error) {
 	// Now build the report
 	var regressionRows, goodRows []crtype.ReportRow
 	for _, rowID := range sortedRows {
@@ -908,7 +907,7 @@ func buildReport(sortedRows []tier1.RowIdentification, sortedColumns []tier1.Col
 			if reportRow.Columns == nil {
 				reportRow.Columns = []crtype.ReportColumn{}
 			}
-			var colIDStruct tier1.ColumnIdentification
+			var colIDStruct test.ColumnIdentification
 			err := json.Unmarshal([]byte(columnID), &colIDStruct)
 			if err != nil {
 				return nil, err
@@ -916,7 +915,7 @@ func buildReport(sortedRows []tier1.RowIdentification, sortedColumns []tier1.Col
 			reportColumn := crtype.ReportColumn{ColumnIdentification: colIDStruct}
 			status, ok := columns[columnID]
 			if !ok {
-				reportColumn.Status = tier1.MissingBasisAndSample
+				reportColumn.Status = test.MissingBasisAndSample
 			} else {
 				reportColumn.Status = status.status
 				reportColumn.RegressedTests = status.regressedTests
@@ -925,7 +924,7 @@ func buildReport(sortedRows []tier1.RowIdentification, sortedColumns []tier1.Col
 				})
 			}
 			reportRow.Columns = append(reportRow.Columns, reportColumn)
-			if reportColumn.Status <= tier1.SignificantTriagedRegression {
+			if reportColumn.Status <= test.SignificantTriagedRegression {
 				hasRegression = true
 			}
 		}
@@ -942,12 +941,12 @@ func buildReport(sortedRows []tier1.RowIdentification, sortedColumns []tier1.Col
 	return regressionRows, nil
 }
 
-func getRegressionStatus(basisPassPercentage, samplePassPercentage float64) tier1.Status {
+func getRegressionStatus(basisPassPercentage, samplePassPercentage float64) test.Status {
 	if (basisPassPercentage - samplePassPercentage) > 0.15 {
-		return tier1.ExtremeRegression
+		return test.ExtremeRegression
 	}
 
-	return tier1.SignificantRegression
+	return test.SignificantRegression
 }
 
 // TODO: this will eventually become the analyze step on a Middleware, or possibly a separate
@@ -966,8 +965,8 @@ func (c *ComponentReportGenerator) assessComponentStatus(testStats *testdetails.
 		c.buildPassRateTestStats(testStats, float64(opts.PassRateRequiredNewTests))
 		// If a new test reports no regression, and we're not using pass rate mode for all tests, we alter
 		// status to be missing basis for the pre-existing Fisher Exact behavior:
-		if testStats.ReportStatus == tier1.NotSignificant && opts.PassRateRequiredAllTests == 0 {
-			testStats.ReportStatus = tier1.MissingBasis
+		if testStats.ReportStatus == test.NotSignificant && opts.PassRateRequiredAllTests == 0 {
+			testStats.ReportStatus = test.MissingBasis
 		}
 		return
 	} else if opts.PassRateRequiredAllTests > 0 {
@@ -983,15 +982,15 @@ func (c *ComponentReportGenerator) assessComponentStatus(testStats *testdetails.
 func (c *ComponentReportGenerator) buildFisherExactTestStats(testStats *testdetails.TestComparison) {
 
 	fisherExact := 0.0
-	testStats.Comparison = tier1.FisherExact
+	testStats.Comparison = test.FisherExact
 
-	status := tier1.MissingBasis
+	status := test.MissingBasis
 	opts := c.ReqOptions.AdvancedOption
 	if testStats.SampleStats.Total() == 0 {
 		if opts.IgnoreMissing {
-			status = tier1.NotSignificant
+			status = test.NotSignificant
 		} else {
-			status = tier1.MissingSample
+			status = test.MissingSample
 		}
 		testStats.ReportStatus = status
 		testStats.FisherExact = thrift.Float64Ptr(0.0)
@@ -1003,7 +1002,7 @@ func (c *ComponentReportGenerator) buildFisherExactTestStats(testStats *testdeta
 		effectivePityFactor := float64(opts.PityFactor) + testStats.PityAdjustment
 
 		// default starting status now that we know we have basis and sample
-		status = tier1.NotSignificant
+		status = test.NotSignificant
 
 		// now that we know sampleTotal is non zero
 		samplePassPercentage := float64(samplePass) / float64(testStats.SampleStats.Total())
@@ -1011,9 +1010,9 @@ func (c *ComponentReportGenerator) buildFisherExactTestStats(testStats *testdeta
 		// are we below the MinimumFailure threshold?
 		if opts.MinimumFailure != 0 &&
 			(testStats.SampleStats.Total()-samplePass) < opts.MinimumFailure {
-			if status <= tier1.SignificantTriagedRegression {
+			if status <= test.SignificantTriagedRegression {
 				testStats.Explanations = append(testStats.Explanations,
-					fmt.Sprintf("%s regression detected.", tier1.StringForStatus(status)))
+					fmt.Sprintf("%s regression detected.", test.StringForStatus(status)))
 			}
 			testStats.ReportStatus = status
 			testStats.FisherExact = thrift.Float64Ptr(0.0)
@@ -1030,7 +1029,7 @@ func (c *ComponentReportGenerator) buildFisherExactTestStats(testStats *testdeta
 		}
 		if significant {
 			if improved {
-				status = tier1.SignificantImprovement
+				status = test.SignificantImprovement
 			} else {
 				status = getRegressionStatus(basisPassPercentage, samplePassPercentage)
 			}
@@ -1040,11 +1039,11 @@ func (c *ComponentReportGenerator) buildFisherExactTestStats(testStats *testdeta
 	testStats.FisherExact = thrift.Float64Ptr(fisherExact)
 
 	// If we have a regression, include explanations:
-	if testStats.ReportStatus <= tier1.SignificantTriagedRegression {
+	if testStats.ReportStatus <= test.SignificantTriagedRegression {
 
-		if testStats.ReportStatus <= tier1.SignificantRegression {
+		if testStats.ReportStatus <= test.SignificantRegression {
 			testStats.Explanations = append(testStats.Explanations,
-				fmt.Sprintf("%s regression detected.", tier1.StringForStatus(testStats.ReportStatus)))
+				fmt.Sprintf("%s regression detected.", test.StringForStatus(testStats.ReportStatus)))
 			testStats.Explanations = append(testStats.Explanations,
 				fmt.Sprintf("Fishers Exact probability of a regression: %.2f%%.", float64(100)-*testStats.FisherExact))
 			testStats.Explanations = append(testStats.Explanations,
@@ -1053,7 +1052,7 @@ func (c *ComponentReportGenerator) buildFisherExactTestStats(testStats *testdeta
 					testStats.SampleStats.SuccessRate*float64(100)))
 		} else {
 			testStats.Explanations = append(testStats.Explanations,
-				fmt.Sprintf("%s regression detected.", tier1.StringForStatus(testStats.ReportStatus)))
+				fmt.Sprintf("%s regression detected.", test.StringForStatus(testStats.ReportStatus)))
 		}
 	}
 }
@@ -1074,19 +1073,19 @@ func (c *ComponentReportGenerator) buildPassRateTestStats(testStats *testdetails
 	opts := c.ReqOptions.AdvancedOption
 	successRate := testStats.SampleStats.PassRate(opts.FlakeAsFailure)
 	if sufficientRuns && successRate*100 < effectiveSuccessReq && testStats.SampleStats.FailureCount >= opts.MinimumFailure {
-		rStatus := tier1.SignificantRegression
+		rStatus := test.SignificantRegression
 		if successRate*100 < severeRegressionSuccessRate {
-			rStatus = tier1.ExtremeRegression
+			rStatus = test.ExtremeRegression
 		}
 		testStats.ReportStatus = rStatus
 		testStats.Explanations = append(testStats.Explanations,
 			fmt.Sprintf("Test has a %.2f%% pass rate, but %.2f%% is required.", successRate*100, effectiveSuccessReq))
-		testStats.Comparison = tier1.PassRate
+		testStats.Comparison = test.PassRate
 		testStats.SampleStats.SuccessRate = successRate
 		return
 	}
 
-	testStats.ReportStatus = tier1.NotSignificant
+	testStats.ReportStatus = test.NotSignificant
 	testStats.Explanations = append(testStats.Explanations, explanationNoRegression)
 }
 

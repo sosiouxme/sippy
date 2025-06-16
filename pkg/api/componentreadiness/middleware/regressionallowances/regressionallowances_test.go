@@ -8,7 +8,6 @@ import (
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/requestoptions"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/test"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/testdetails"
-	"github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
 	"github.com/openshift/sippy/pkg/regressionallowances"
 	"github.com/stretchr/testify/assert"
 )
@@ -20,7 +19,7 @@ func Test_PreAnalysis(t *testing.T) {
 		"Arch":     "amd64",
 		"Platform": "aws",
 	}
-	regressionGetter := func(releaseString string, variant tier1.ColumnIdentification, testID string) *regressionallowances.IntentionalRegression {
+	regressionGetter := func(releaseString string, variant test.ColumnIdentification, testID string) *regressionallowances.IntentionalRegression {
 		if releaseString == "4.18" && reflect.DeepEqual(variant.Variants, variants) && testID == test1ID {
 			return &regressionallowances.IntentionalRegression{
 				TestID:             test1ID,
@@ -63,31 +62,31 @@ func Test_PreAnalysis(t *testing.T) {
 	reqOpts420Fallback.SampleRelease.Release = "4.20"
 	reqOpts420Fallback.BaseRelease.Release = "4.19"
 
-	test1Key := tier1.ReportTestIdentification{
-		RowIdentification: tier1.RowIdentification{
+	test1Key := test.ReportTestIdentification{
+		RowIdentification: test.RowIdentification{
 			TestName: "test 1",
 			TestID:   test1ID,
 		},
-		ColumnIdentification: tier1.ColumnIdentification{
+		ColumnIdentification: test.ColumnIdentification{
 			Variants: variants,
 		},
 	}
 
-	test2Key := tier1.ReportTestIdentification{
-		RowIdentification: tier1.RowIdentification{
+	test2Key := test.ReportTestIdentification{
+		RowIdentification: test.RowIdentification{
 			TestName: "test 2",
 			TestID:   test2ID,
 		},
-		ColumnIdentification: tier1.ColumnIdentification{
+		ColumnIdentification: test.ColumnIdentification{
 			Variants: variants,
 		},
 	}
 
 	tests := []struct {
 		name             string
-		testKey          tier1.ReportTestIdentification
+		testKey          test.ReportTestIdentification
 		reqOpts          requestoptions.RequestOptions
-		regressionGetter func(releaseString string, variant tier1.ColumnIdentification, testID string) *regressionallowances.IntentionalRegression
+		regressionGetter func(releaseString string, variant test.ColumnIdentification, testID string) *regressionallowances.IntentionalRegression
 		testStatus       *testdetails.TestComparison
 		expectedStatus   *testdetails.TestComparison
 	}{

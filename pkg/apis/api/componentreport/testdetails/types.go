@@ -6,13 +6,12 @@ import (
 
 	"cloud.google.com/go/civil"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/test"
-	"github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
 	"github.com/openshift/sippy/pkg/db/models"
 )
 
 // Report is the top level API response for test details reports.
 type Report struct {
-	tier1.ReportTestIdentification
+	test.ReportTestIdentification
 	JiraComponent   string     `json:"jira_component"`
 	JiraComponentID *big.Rat   `json:"jira_component_id"`
 	TestName        string     `json:"test_name"`
@@ -38,10 +37,10 @@ type Analysis struct {
 // TODO: compare with TestStatus we use internally, see if we can converge?
 type TestComparison struct {
 	// ReportStatus is an integer representing the severity of the regression.
-	ReportStatus tier1.Status `json:"status"`
+	ReportStatus test.Status `json:"status"`
 
 	// Comparison indicates what mode was used to check this tests results in the sample.
-	Comparison tier1.Comparison `json:"comparison"`
+	Comparison test.Comparison `json:"comparison"`
 
 	// Explanations are human-readable details of why this test was marked regressed.
 	Explanations []string `json:"explanations"`

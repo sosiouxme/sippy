@@ -15,7 +15,6 @@ import (
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/requestoptions"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/test"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/testdetails"
-	"github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
 	"github.com/openshift/sippy/pkg/db"
 	"github.com/openshift/sippy/pkg/util/sets"
 	"github.com/sirupsen/logrus"
@@ -61,7 +60,7 @@ func GetTestDetails(ctx context.Context, client *bigquery.Client, dbc *db.DB, re
 func (c *ComponentReportGenerator) PostAnalysisTestDetails(report *testdetails.Report) error {
 
 	// Give middleware their chance to adjust the result
-	testKey := tier1.ReportTestIdentification{
+	testKey := test.ReportTestIdentification{
 		RowIdentification:    report.RowIdentification,
 		ColumnIdentification: report.ColumnIdentification,
 	}
@@ -255,7 +254,7 @@ func (c *ComponentReportGenerator) GenerateDetailsReportForTest(ctx context.Cont
 
 func (c *ComponentReportGenerator) getBaseJobRunTestStatus(
 	ctx context.Context,
-	allJobVariants tier1.JobVariants,
+	allJobVariants test.JobVariants,
 	baseRelease string,
 	baseStart time.Time,
 	baseEnd time.Time) (map[string][]bq.TestJobRunRows, []error) {
@@ -287,7 +286,7 @@ func (c *ComponentReportGenerator) getBaseJobRunTestStatus(
 
 func (c *ComponentReportGenerator) getSampleJobRunTestStatus(
 	ctx context.Context,
-	allJobVariants tier1.JobVariants,
+	allJobVariants test.JobVariants,
 	includeVariants map[string][]string,
 	start, end time.Time,
 	junitTable string) (map[string][]bq.TestJobRunRows, []error) {
@@ -458,13 +457,13 @@ func (c *ComponentReportGenerator) internalGenerateTestDetailsReport(
 	baseStatus, sampleStatus map[string][]bq.TestJobRunRows,
 	testIDOption requestoptions.RequestTestIdentificationOptions,
 ) testdetails.Report {
-	testKey := tier1.ReportTestIdentification{
-		RowIdentification: tier1.RowIdentification{
+	testKey := test.ReportTestIdentification{
+		RowIdentification: test.RowIdentification{
 			Component:  testIDOption.Component,
 			Capability: testIDOption.Capability,
 			TestID:     testIDOption.TestID,
 		},
-		ColumnIdentification: tier1.ColumnIdentification{
+		ColumnIdentification: test.ColumnIdentification{
 			Variants: testIDOption.RequestedVariants,
 		},
 	}
@@ -503,7 +502,7 @@ func (c *ComponentReportGenerator) internalGenerateTestDetailsReport(
 
 // go through all the job runs that had a test and summarize the results
 func (c *ComponentReportGenerator) summarizeRecordedTestStats(
-	baseStatus, sampleStatus map[string][]bq.TestJobRunRows, testKey tier1.ReportTestIdentification,
+	baseStatus, sampleStatus map[string][]bq.TestJobRunRows, testKey test.ReportTestIdentification,
 ) (
 	totalBase, totalSample test.Stats,
 	report testdetails.Analysis,

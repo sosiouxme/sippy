@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/test"
 	"github.com/pkg/errors"
 
 	log "github.com/sirupsen/logrus"
@@ -178,7 +178,7 @@ func GetReleases(ctx context.Context, bqc *bqclient.Client) ([]v1.Release, error
 }
 
 // VariantsStringToSet converts comma separated variant string into a set; also validates that the variants are known
-func VariantsStringToSet(allJobVariants tier1.JobVariants, variantsString string) (sets.String, error) {
+func VariantsStringToSet(allJobVariants test.JobVariants, variantsString string) (sets.String, error) {
 	variantSet := sets.String{}
 	variants := strings.Split(variantsString, ",")
 	for _, v := range variants {
@@ -193,7 +193,7 @@ func VariantsStringToSet(allJobVariants tier1.JobVariants, variantsString string
 
 // VariantListToMap collects a list of variants like "Architecture:amd64" into a map [Architecture -> amd64];
 // it also validates that the variants are known
-func VariantListToMap(allJobVariants tier1.JobVariants, variants []string) (map[string][]string, error) {
+func VariantListToMap(allJobVariants test.JobVariants, variants []string) (map[string][]string, error) {
 	variantsMap := map[string][]string{}
 	var err error
 	for _, variant := range variants {

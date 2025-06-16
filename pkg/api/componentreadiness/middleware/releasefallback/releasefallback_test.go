@@ -9,7 +9,6 @@ import (
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/requestoptions"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/test"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/testdetails"
-	"github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -33,15 +32,15 @@ func Test_PreAnalysis(t *testing.T) {
 	test1KeyBytes, err := json.Marshal(test1MapKey)
 	test1KeyStr := string(test1KeyBytes)
 	assert.NoError(t, err)
-	test1RTI := tier1.ReportTestIdentification{
-		RowIdentification: tier1.RowIdentification{
+	test1RTI := test.ReportTestIdentification{
+		RowIdentification: test.RowIdentification{
 			Component:  "",
 			Capability: "",
 			TestName:   "test 1",
 			TestSuite:  "",
 			TestID:     test1ID,
 		},
-		ColumnIdentification: tier1.ColumnIdentification{
+		ColumnIdentification: test.ColumnIdentification{
 			Variants: test1Variants,
 		},
 	}
@@ -49,7 +48,7 @@ func Test_PreAnalysis(t *testing.T) {
 	// 4.19 will be our assumed requested base release, which may trigger fallback to 4.18 or 4.17 in these tests
 	start419 := time.Date(2025, 3, 2, 0, 0, 0, 0, time.UTC)
 	end419 := time.Date(2025, 4, 30, 0, 0, 0, 0, time.UTC)
-	release419 := tier1.Release{
+	release419 := test.Release{
 		Release: "4.19",
 		Start:   &start419,
 		End:     &end419,
@@ -57,7 +56,7 @@ func Test_PreAnalysis(t *testing.T) {
 
 	start418 := time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC)
 	end418 := time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC)
-	release418 := tier1.Release{
+	release418 := test.Release{
 		Release: "4.18",
 		Start:   &start418,
 		End:     &end418,
@@ -71,7 +70,7 @@ func Test_PreAnalysis(t *testing.T) {
 
 	start417 := time.Date(2024, 12, 1, 0, 0, 0, 0, time.UTC)
 	end417 := time.Date(2024, 12, 31, 0, 0, 0, 0, time.UTC)
-	release417 := tier1.Release{
+	release417 := test.Release{
 		Release: "4.17",
 		Start:   &start417,
 		End:     &end417,
@@ -86,7 +85,7 @@ func Test_PreAnalysis(t *testing.T) {
 	tests := []struct {
 		name             string
 		reqOpts          requestoptions.RequestOptions
-		testKey          tier1.ReportTestIdentification
+		testKey          test.ReportTestIdentification
 		fallbackReleases FallbackReleases
 		testStats        *testdetails.TestComparison
 		expectedStatus   *testdetails.TestComparison
@@ -169,7 +168,7 @@ func Test_PreAnalysis(t *testing.T) {
 func TestCalculateFallbackReleases(t *testing.T) {
 	start419 := time.Date(2025, 3, 2, 0, 0, 0, 0, time.UTC)
 	end419 := time.Date(2025, 4, 30, 0, 0, 0, 0, time.UTC)
-	release419 := tier1.Release{
+	release419 := test.Release{
 		Release: "4.19",
 		Start:   &start419,
 		End:     &end419,
@@ -177,7 +176,7 @@ func TestCalculateFallbackReleases(t *testing.T) {
 
 	start418 := time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC)
 	end418 := time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC)
-	release418 := tier1.Release{
+	release418 := test.Release{
 		Release: "4.18",
 		Start:   &start418,
 		End:     &end418,
@@ -185,7 +184,7 @@ func TestCalculateFallbackReleases(t *testing.T) {
 
 	start417 := time.Date(2024, 12, 1, 0, 0, 0, 0, time.UTC)
 	end417 := time.Date(2024, 12, 31, 0, 0, 0, 0, time.UTC)
-	release417 := tier1.Release{
+	release417 := test.Release{
 		Release: "4.17",
 		Start:   &start417,
 		End:     &end417,
@@ -193,14 +192,14 @@ func TestCalculateFallbackReleases(t *testing.T) {
 
 	start416 := time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC)
 	end416 := time.Date(2024, 6, 30, 0, 0, 0, 0, time.UTC)
-	release416 := tier1.Release{
+	release416 := test.Release{
 		Release: "4.16",
 		Start:   &start416,
 		End:     &end416,
 	}
 
-	allReleases := []tier1.Release{release419, release418, release417, release416}
-	expectedReleases := []tier1.Release{release419, release418, release417}
+	allReleases := []test.Release{release419, release418, release417, release416}
+	expectedReleases := []test.Release{release419, release418, release417}
 
 	fallbackReleases := calculateFallbackReleases("4.20", allReleases)
 	for i := range expectedReleases {
@@ -226,7 +225,7 @@ func buildTestStatus(testName string, variants []string, total, success, flake i
 	}
 }
 
-func buildTestStats(total, success int, baseRelease tier1.Release, explanations []string) *testdetails.TestComparison {
+func buildTestStats(total, success int, baseRelease test.Release, explanations []string) *testdetails.TestComparison {
 	fails := total - success
 	ts := &testdetails.TestComparison{
 		BaseStats: &testdetails.ReleaseStats{

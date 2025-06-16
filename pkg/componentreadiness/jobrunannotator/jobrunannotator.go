@@ -14,7 +14,7 @@ import (
 	"cloud.google.com/go/storage"
 	"github.com/openshift/sippy/pkg/api/jobartifacts"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/bq"
-	"github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/test"
 	"github.com/openshift/sippy/pkg/apis/cache"
 	bqclient "github.com/openshift/sippy/pkg/bigquery"
 	"github.com/openshift/sippy/pkg/db"
@@ -61,7 +61,7 @@ type JobRunAnnotator struct {
 	dbClient         *db.DB
 	cache            cache.Cache
 	execute          bool
-	allVariants      tier1.JobVariants
+	allVariants      test.JobVariants
 	Release          string        `json:"release"`
 	IncludedVariants []bq.Variant  `json:"included_variants"`
 	Label            string        `json:"label"`
@@ -86,7 +86,7 @@ func NewJobRunAnnotator(
 	cacheClient cache.Cache,
 	execute bool,
 	release string,
-	allVariants tier1.JobVariants,
+	allVariants test.JobVariants,
 	variants []bq.Variant,
 	label string,
 	buildClusters []string,

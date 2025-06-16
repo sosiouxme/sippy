@@ -7,26 +7,25 @@ import (
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/bq"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/test"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/testdetails"
-	"github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
 )
 
 type List []Middleware
 
-func (l List) Query(ctx context.Context, wg *sync.WaitGroup, allJobVariants tier1.JobVariants, baseStatusCh, sampleStatusCh chan map[string]bq.TestStatus, errCh chan error) {
+func (l List) Query(ctx context.Context, wg *sync.WaitGroup, allJobVariants test.JobVariants, baseStatusCh, sampleStatusCh chan map[string]bq.TestStatus, errCh chan error) {
 	// Invoke the Query phase for each middleware configured:
 	for _, mw := range l {
 		mw.Query(ctx, wg, allJobVariants, baseStatusCh, sampleStatusCh, errCh)
 	}
 }
 
-func (l List) QueryTestDetails(ctx context.Context, wg *sync.WaitGroup, errCh chan error, allJobVariants tier1.JobVariants) {
+func (l List) QueryTestDetails(ctx context.Context, wg *sync.WaitGroup, errCh chan error, allJobVariants test.JobVariants) {
 	// Invoke the QueryTestDetails phase for each middleware configured:
 	for _, mw := range l {
 		mw.QueryTestDetails(ctx, wg, errCh, allJobVariants)
 	}
 }
 
-func (l List) PreAnalysis(testKey tier1.ReportTestIdentification, testStats *testdetails.TestComparison) error {
+func (l List) PreAnalysis(testKey test.ReportTestIdentification, testStats *testdetails.TestComparison) error {
 	for _, mw := range l {
 		if err := mw.PreAnalysis(testKey, testStats); err != nil {
 			return err
@@ -35,7 +34,7 @@ func (l List) PreAnalysis(testKey tier1.ReportTestIdentification, testStats *tes
 	return nil
 }
 
-func (l List) PostAnalysis(testKey tier1.ReportTestIdentification, testStats *testdetails.TestComparison) error {
+func (l List) PostAnalysis(testKey test.ReportTestIdentification, testStats *testdetails.TestComparison) error {
 	for _, mw := range l {
 		if err := mw.PostAnalysis(testKey, testStats); err != nil {
 			return err

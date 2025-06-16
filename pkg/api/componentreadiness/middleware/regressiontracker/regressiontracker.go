@@ -12,7 +12,6 @@ import (
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/requestoptions"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/test"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/testdetails"
-	"github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
 	"github.com/openshift/sippy/pkg/db"
 	"github.com/openshift/sippy/pkg/db/models"
 	"github.com/openshift/sippy/pkg/db/query"
@@ -47,14 +46,14 @@ type RegressionTracker struct {
 	hasLoadedRegressions bool
 }
 
-func (r *RegressionTracker) Query(ctx context.Context, wg *sync.WaitGroup, allJobVariants tier1.JobVariants, baseStatusCh, sampleStatusCh chan map[string]bq.TestStatus, errCh chan error) {
+func (r *RegressionTracker) Query(ctx context.Context, wg *sync.WaitGroup, allJobVariants test.JobVariants, baseStatusCh, sampleStatusCh chan map[string]bq.TestStatus, errCh chan error) {
 	err := r.ensureRegressionsLoaded()
 	if err != nil {
 		errCh <- err
 	}
 }
 
-func (r *RegressionTracker) QueryTestDetails(ctx context.Context, wg *sync.WaitGroup, errCh chan error, allJobVariants tier1.JobVariants) {
+func (r *RegressionTracker) QueryTestDetails(ctx context.Context, wg *sync.WaitGroup, errCh chan error, allJobVariants test.JobVariants) {
 	err := r.ensureRegressionsLoaded()
 	if err != nil {
 		errCh <- err
@@ -77,7 +76,7 @@ func (r *RegressionTracker) ensureRegressionsLoaded() error {
 	return nil
 }
 
-func (r *RegressionTracker) PreAnalysis(testKey tier1.ReportTestIdentification, testStats *testdetails.TestComparison) error {
+func (r *RegressionTracker) PreAnalysis(testKey test.ReportTestIdentification, testStats *testdetails.TestComparison) error {
 	if len(r.openRegressions) > 0 {
 		view := r.openRegressions[0].View // grab view from first regression, they were queried only for sample release
 		or := FindOpenRegression(view, testKey.TestID, testKey.Variants, r.openRegressions)
@@ -101,8 +100,8 @@ func (r *RegressionTracker) PreAnalysis(testKey tier1.ReportTestIdentification, 
 }
 
 // PostAnalysis adjusts status code (and thus icons) based on the triaged state of open regressions.
-func (r *RegressionTracker) PostAnalysis(testKey tier1.ReportTestIdentification, testStats *testdetails.TestComparison) error {
-	if testStats.ReportStatus > tier1.SignificantTriagedRegression {
+func (r *RegressionTracker) PostAnalysis(testKey test.ReportTestIdentification, testStats *testdetails.TestComparison) error {
+	if testStats.ReportStatus > test.SignificantTriagedRegression {
 		// no need to adjust status for triage if this is no longer a regression
 		return nil
 	}
@@ -134,22 +133,22 @@ func (r *RegressionTracker) PostAnalysis(testKey tier1.ReportTestIdentification,
 			case allTriagesResolved && testStats.LastFailure != nil && lastResolution.Before(*testStats.LastFailure):
 				// claimed fixed but does not appear to be
 				// aka liar liar pants on fire
-				testStats.ReportStatus = tier1.FailedFixedRegression
+				testStats.ReportStatus = test.FailedFixedRegression
 				testStats.Explanations = append(testStats.Explanations, fmt.Sprintf(
 					"Regression is triaged, and believed fixed as of %s, but failures have been observed as recently as %s.",
 					lastResolution.Format(time.RFC3339), testStats.LastFailure.Format(time.RFC3339)))
 			case allTriagesResolved:
 				// claimed fixed, no failures since resolution date
-				testStats.ReportStatus = tier1.FixedRegression
+				testStats.ReportStatus = test.FixedRegression
 				testStats.Explanations = append(testStats.Explanations, fmt.Sprintf(
 					"Regression is triaged and believed fixed as of %s.",
 					lastResolution.Format(time.RFC3339)))
-			case testStats.ReportStatus == tier1.SignificantRegression:
-				testStats.ReportStatus = tier1.SignificantTriagedRegression
+			case testStats.ReportStatus == test.SignificantRegression:
+				testStats.ReportStatus = test.SignificantTriagedRegression
 				testStats.Explanations = append(testStats.Explanations,
 					"Regression has been triaged to one or more bugs.")
-			case testStats.ReportStatus == tier1.ExtremeRegression:
-				testStats.ReportStatus = tier1.ExtremeTriagedRegression
+			case testStats.ReportStatus == test.ExtremeRegression:
+				testStats.ReportStatus = test.ExtremeTriagedRegression
 				testStats.Explanations = append(testStats.Explanations,
 					"Extreme regression has been triaged to one or more bugs.")
 			}

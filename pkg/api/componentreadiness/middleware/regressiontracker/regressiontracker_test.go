@@ -7,8 +7,8 @@ import (
 
 	"github.com/openshift/sippy/pkg/api/componentreadiness/utils"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/requestoptions"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/test"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/testdetails"
-	"github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
 	"github.com/openshift/sippy/pkg/db/models"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -18,15 +18,15 @@ import (
 func TestRegressionTracker_PostAnalysis(t *testing.T) {
 	baseRelease := "4.19"
 	sampleRelease := "4.18"
-	testKey := tier1.ReportTestIdentification{
-		RowIdentification: tier1.RowIdentification{
+	testKey := test.ReportTestIdentification{
+		RowIdentification: test.RowIdentification{
 			Component:  "foo",
 			Capability: "bar",
 			TestName:   "foobar test 1",
 			TestSuite:  "foo",
 			TestID:     "foobartest1",
 		},
-		ColumnIdentification: tier1.ColumnIdentification{
+		ColumnIdentification: test.ColumnIdentification{
 			Variants: map[string]string{
 				"foo": "bar",
 			},
@@ -58,13 +58,13 @@ func TestRegressionTracker_PostAnalysis(t *testing.T) {
 		name                      string
 		testStats                 testdetails.TestComparison
 		openRegression            models.TestRegression
-		expectStatus              tier1.Status
+		expectStatus              test.Status
 		expectedExplanationsCount int
 	}{
 		{
 			name: "triaged regression",
 			testStats: testdetails.TestComparison{
-				ReportStatus: tier1.ExtremeRegression,
+				ReportStatus: test.ExtremeRegression,
 				Explanations: []string{},
 				LastFailure:  &daysAgo4,
 			},
@@ -92,13 +92,13 @@ func TestRegressionTracker_PostAnalysis(t *testing.T) {
 					},
 				},
 			},
-			expectStatus:              tier1.ExtremeTriagedRegression,
+			expectStatus:              test.ExtremeTriagedRegression,
 			expectedExplanationsCount: 1,
 		},
 		{
 			name: "triage resolved waiting to clear",
 			testStats: testdetails.TestComparison{
-				ReportStatus: tier1.ExtremeRegression,
+				ReportStatus: test.ExtremeRegression,
 				Explanations: []string{},
 				LastFailure:  &daysAgo4,
 			},
@@ -129,13 +129,13 @@ func TestRegressionTracker_PostAnalysis(t *testing.T) {
 					},
 				},
 			},
-			expectStatus:              tier1.FixedRegression,
+			expectStatus:              test.FixedRegression,
 			expectedExplanationsCount: 1,
 		},
 		{
 			name: "triage resolved but has failed since",
 			testStats: testdetails.TestComparison{
-				ReportStatus: tier1.ExtremeRegression,
+				ReportStatus: test.ExtremeRegression,
 				Explanations: []string{},
 				LastFailure:  &daysAgo2,
 			},
@@ -166,13 +166,13 @@ func TestRegressionTracker_PostAnalysis(t *testing.T) {
 					},
 				},
 			},
-			expectStatus:              tier1.FailedFixedRegression,
+			expectStatus:              test.FailedFixedRegression,
 			expectedExplanationsCount: 1,
 		},
 		{
 			name: "triage resolved and has cleared entirely",
 			testStats: testdetails.TestComparison{
-				ReportStatus: tier1.SignificantImprovement,
+				ReportStatus: test.SignificantImprovement,
 				Explanations: []string{},
 				LastFailure:  nil,
 			},
@@ -203,13 +203,13 @@ func TestRegressionTracker_PostAnalysis(t *testing.T) {
 					},
 				},
 			},
-			expectStatus:              tier1.SignificantImprovement,
+			expectStatus:              test.SignificantImprovement,
 			expectedExplanationsCount: 0,
 		},
 		{
 			name: "triage resolved no longer significant but failures since resolution time",
 			testStats: testdetails.TestComparison{
-				ReportStatus: tier1.NotSignificant,
+				ReportStatus: test.NotSignificant,
 				Explanations: []string{},
 				LastFailure:  &daysAgo2,
 			},
@@ -240,7 +240,7 @@ func TestRegressionTracker_PostAnalysis(t *testing.T) {
 					},
 				},
 			},
-			expectStatus:              tier1.NotSignificant,
+			expectStatus:              test.NotSignificant,
 			expectedExplanationsCount: 0,
 		},
 	}

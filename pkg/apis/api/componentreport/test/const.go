@@ -1,4 +1,4 @@
-package tier1
+package test
 
 const (
 	// FailedFixedRegression indicates someone has claimed the bug is fix, but we see failures past the resolution time

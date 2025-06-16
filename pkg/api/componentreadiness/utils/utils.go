@@ -11,7 +11,6 @@ import (
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/bq"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/requestoptions"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/test"
-	"github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
 	"github.com/sirupsen/logrus"
 )
 
@@ -44,7 +43,7 @@ func getMinor(in string) (int, error) {
 	return int(minor), err
 }
 
-func FindStartEndTimesForRelease(releases []tier1.Release, release string) (*time.Time, *time.Time, error) {
+func FindStartEndTimesForRelease(releases []test.Release, release string) (*time.Time, *time.Time, error) {
 	for _, r := range releases {
 		if r.Release == release {
 			return r.Start, r.End, nil
@@ -86,21 +85,21 @@ func NormalizeProwJobName(prowName string, reqOptions requestoptions.RequestOpti
 // DeserializeTestKey helps us workaround the limitations of a struct as a map key, where
 // we instead serialize a very small struct to json for a unit test key that includes test
 // ID and a specific set of variants. This function deserializes back to a struct.
-func DeserializeTestKey(stats bq.TestStatus, testKeyStr string) (tier1.ReportTestIdentification, error) {
+func DeserializeTestKey(stats bq.TestStatus, testKeyStr string) (test.ReportTestIdentification, error) {
 	var testKey test.KeyWithVariants
 	err := json.Unmarshal([]byte(testKeyStr), &testKey)
 	if err != nil {
 		logrus.WithError(err).Errorf("trying to unmarshel %s", testKeyStr)
-		return tier1.ReportTestIdentification{}, err
+		return test.ReportTestIdentification{}, err
 	}
-	testID := tier1.ReportTestIdentification{
-		RowIdentification: tier1.RowIdentification{
+	testID := test.ReportTestIdentification{
+		RowIdentification: test.RowIdentification{
 			Component: stats.Component,
 			TestName:  stats.TestName,
 			TestSuite: stats.TestSuite,
 			TestID:    testKey.TestID,
 		},
-		ColumnIdentification: tier1.ColumnIdentification{
+		ColumnIdentification: test.ColumnIdentification{
 			Variants: testKey.Variants,
 		},
 	}

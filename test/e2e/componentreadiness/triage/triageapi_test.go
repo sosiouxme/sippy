@@ -8,7 +8,7 @@ import (
 	"github.com/openshift/sippy/pkg/api/componentreadiness"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/requestoptions"
-	"github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/test"
 	view2 "github.com/openshift/sippy/pkg/apis/api/componentreport/view"
 	"github.com/openshift/sippy/pkg/db"
 	"github.com/openshift/sippy/pkg/db/models"
@@ -294,15 +294,15 @@ func Test_TriageRawDB(t *testing.T) {
 
 func createTestRegression(t *testing.T, tracker componentreadiness.RegressionStore, view view2.View, testID string) *models.TestRegression {
 	newRegression := componentreport.ReportTestSummary{
-		ReportTestIdentification: tier1.ReportTestIdentification{
-			RowIdentification: tier1.RowIdentification{
+		ReportTestIdentification: test.ReportTestIdentification{
+			RowIdentification: test.RowIdentification{
 				Component:  "comp",
 				Capability: "cap",
 				TestName:   "fake test",
 				TestSuite:  "fakesuite",
 				TestID:     testID,
 			},
-			ColumnIdentification: tier1.ColumnIdentification{
+			ColumnIdentification: test.ColumnIdentification{
 				Variants: map[string]string{
 					"a": "b",
 					"c": "d",

@@ -6,7 +6,6 @@ import (
 	"net/url"
 
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/test"
-	"github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
 	"github.com/openshift/sippy/pkg/componentreadiness/resolvedissues"
 
 	log "github.com/sirupsen/logrus"
@@ -16,7 +15,7 @@ type IntentionalRegression struct {
 	JiraComponent             string
 	TestID                    string
 	TestName                  string
-	Variant                   tier1.ColumnIdentification
+	Variant                   test.ColumnIdentification
 	PreviousSuccesses         int
 	PreviousFailures          int
 	PreviousFlakes            int
@@ -33,10 +32,10 @@ var intentionalRegressions = map[release]map[string]IntentionalRegression{}
 
 type regressionKey struct {
 	TestID  string
-	Variant tier1.ColumnIdentification
+	Variant test.ColumnIdentification
 }
 
-func IntentionalRegressionFor(releaseString string, variant tier1.ColumnIdentification, testID string) *IntentionalRegression {
+func IntentionalRegressionFor(releaseString string, variant test.ColumnIdentification, testID string) *IntentionalRegression {
 	var targetMap map[string]IntentionalRegression
 	var ok bool
 	if targetMap, ok = intentionalRegressions[release(releaseString)]; !ok {
@@ -59,10 +58,10 @@ func (i *IntentionalRegression) PreviousPassPercentage(flakeAsFailure bool) floa
 	return test.CalculatePassRate(i.PreviousSuccesses, i.PreviousFailures, i.PreviousFlakes, flakeAsFailure)
 }
 
-func keyFor(testID string, variant tier1.ColumnIdentification) string {
+func keyFor(testID string, variant test.ColumnIdentification) string {
 	key := regressionKey{
 		TestID: testID,
-		Variant: tier1.ColumnIdentification{
+		Variant: test.ColumnIdentification{
 			Variants: variant.Variants,
 		},
 	}

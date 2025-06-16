@@ -14,7 +14,6 @@ import (
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/bq"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/requestoptions"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/test"
-	"github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/api/iterator"
@@ -117,14 +116,14 @@ const (
 
 type baseQueryGenerator struct {
 	client      *bqcachedclient.Client
-	allVariants tier1.JobVariants
+	allVariants test.JobVariants
 	ReqOptions  requestoptions.RequestOptions
 }
 
 func NewBaseQueryGenerator(
 	client *bqcachedclient.Client,
 	reqOptions requestoptions.RequestOptions,
-	allVariants tier1.JobVariants) baseQueryGenerator {
+	allVariants test.JobVariants) baseQueryGenerator {
 	generator := baseQueryGenerator{
 		client:      client,
 		allVariants: allVariants,
@@ -175,7 +174,7 @@ func (b *baseQueryGenerator) QueryTestStatus(ctx context.Context) (bq.ReportTest
 
 type sampleQueryGenerator struct {
 	client      *bqcachedclient.Client
-	allVariants tier1.JobVariants
+	allVariants test.JobVariants
 	ReqOptions  requestoptions.RequestOptions
 	// JunitTable is the bigquery table (in the normal dataset configured), where this sample query generator should
 	// pull its data from. It is a public field as we want it included in the cache
@@ -193,7 +192,7 @@ type sampleQueryGenerator struct {
 func NewSampleQueryGenerator(
 	client *bqcachedclient.Client,
 	reqOptions requestoptions.RequestOptions,
-	allVariants tier1.JobVariants,
+	allVariants test.JobVariants,
 	includeVariants map[string][]string, // separate from ReqOptions as caller sometimes has to modify them
 	start, end time.Time,
 	junitTable string) sampleQueryGenerator {
@@ -279,7 +278,7 @@ func (s *sampleQueryGenerator) QueryTestStatus(ctx context.Context) (bq.ReportTe
 func BuildComponentReportQuery(
 	client *bqcachedclient.Client,
 	reqOptions requestoptions.RequestOptions,
-	allJobVariants tier1.JobVariants,
+	allJobVariants test.JobVariants,
 	includeVariants map[string][]string,
 	junitTable string,
 	isSample, isFallback bool) (string, string, []bigquery.QueryParameter) {
@@ -408,7 +407,7 @@ func buildTestDetailsQuery(
 	client *bqcachedclient.Client,
 	testIDOpts []requestoptions.RequestTestIdentificationOptions,
 	c requestoptions.RequestOptions,
-	allJobVariants tier1.JobVariants,
+	allJobVariants test.JobVariants,
 	includeVariants map[string][]string,
 	junitTable string,
 	isSample bool) (string, string, []bigquery.QueryParameter) {
@@ -701,7 +700,7 @@ type baseTestDetailsQueryGenerator struct {
 	logger         log.FieldLogger
 	client         *bqcachedclient.Client
 	ReqOptions     requestoptions.RequestOptions
-	allJobVariants tier1.JobVariants
+	allJobVariants test.JobVariants
 	BaseRelease    string
 	BaseStart      time.Time
 	BaseEnd        time.Time
@@ -710,7 +709,7 @@ type baseTestDetailsQueryGenerator struct {
 
 func NewBaseTestDetailsQueryGenerator(logger log.FieldLogger, client *bqcachedclient.Client,
 	reqOptions requestoptions.RequestOptions,
-	allJobVariants tier1.JobVariants,
+	allJobVariants test.JobVariants,
 	baseRelease string, baseStart time.Time, baseEnd time.Time,
 	testIDOpts []requestoptions.RequestTestIdentificationOptions) *baseTestDetailsQueryGenerator {
 
@@ -758,7 +757,7 @@ func (b *baseTestDetailsQueryGenerator) QueryTestStatus(ctx context.Context) (bq
 
 // sampleTestDetailsQueryGenerator generates the query we use for the sample on the test details page.
 type sampleTestDetailsQueryGenerator struct {
-	allJobVariants tier1.JobVariants
+	allJobVariants test.JobVariants
 	client         *bqcachedclient.Client
 	ReqOptions     requestoptions.RequestOptions
 
@@ -778,7 +777,7 @@ type sampleTestDetailsQueryGenerator struct {
 func NewSampleTestDetailsQueryGenerator(
 	client *bqcachedclient.Client,
 	reqOptions requestoptions.RequestOptions,
-	allJobVariants tier1.JobVariants,
+	allJobVariants test.JobVariants,
 	includeVariants map[string][]string,
 	start, end time.Time,
 	junitTable string) *sampleTestDetailsQueryGenerator {

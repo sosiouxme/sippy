@@ -12,7 +12,7 @@ import (
 
 	"github.com/andygrunwald/go-jira"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/requestoptions"
-	"github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
+	crtest "github.com/openshift/sippy/pkg/apis/api/componentreport/test"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/view"
 	log "github.com/sirupsen/logrus"
 	"github.com/trivago/tgo/tcontainer"
@@ -410,18 +410,18 @@ func (j JiraAutomator) updateJiraIssueForRegressions(issue jira.Issue, view view
 			}
 
 			// Identify tests only appearing in current report, not scope report
-			scopeRegressedTests := map[tier1.RowIdentification]map[tier1.ColumnID]crtype.ReportTestSummary{}
+			scopeRegressedTests := map[crtest.RowIdentification]map[crtest.ColumnID]crtype.ReportTestSummary{}
 			for _, row := range scopeReport.Rows {
 				for _, col := range row.Columns {
 					for _, test := range col.RegressedTests {
 						if _, ok := scopeRegressedTests[test.RowIdentification]; !ok {
-							scopeRegressedTests[row.RowIdentification] = map[tier1.ColumnID]crtype.ReportTestSummary{}
+							scopeRegressedTests[row.RowIdentification] = map[crtest.ColumnID]crtype.ReportTestSummary{}
 						}
 						columnKeyBytes, err := json.Marshal(test.ColumnIdentification)
 						if err != nil {
 							return err
 						}
-						scopeRegressedTests[test.RowIdentification][tier1.ColumnID(columnKeyBytes)] = test
+						scopeRegressedTests[test.RowIdentification][crtest.ColumnID(columnKeyBytes)] = test
 					}
 				}
 			}
@@ -434,7 +434,7 @@ func (j JiraAutomator) updateJiraIssueForRegressions(issue jira.Issue, view view
 				_, ok := scopeRegressedTests[test.RowIdentification]
 				if !ok {
 					newTests = append(newTests, test)
-				} else if _, ok := scopeRegressedTests[test.RowIdentification][tier1.ColumnID(columnKeyBytes)]; !ok {
+				} else if _, ok := scopeRegressedTests[test.RowIdentification][crtest.ColumnID(columnKeyBytes)]; !ok {
 					newTests = append(newTests, test)
 				}
 			}
