@@ -10,6 +10,9 @@ import (
 	"github.com/openshift/sippy/pkg/api/componentreadiness"
 	sippytypes "github.com/openshift/sippy/pkg/apis/api"
 	crtype "github.com/openshift/sippy/pkg/apis/api/componentreport"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/requestoptions"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/view"
 	"github.com/openshift/sippy/pkg/apis/cache"
 	v1 "github.com/openshift/sippy/pkg/apis/config/v1"
 	apiv1 "github.com/openshift/sippy/pkg/apis/sippy/v1"
@@ -95,11 +98,11 @@ func (l *ComponentReadinessCacheLoader) Errors() []error {
 	return l.errs
 }
 
-func primeCacheForView(ctx context.Context, view crtype.View, releases []apiv1.Release, cacheOpts cache.RequestOptions, bigQueryClient *bigquery.Client, dbc *db.DB, config *v1.SippyConfig) error {
+func primeCacheForView(ctx context.Context, view view.View, releases []apiv1.Release, cacheOpts cache.RequestOptions, bigQueryClient *bigquery.Client, dbc *db.DB, config *v1.SippyConfig) error {
 	rLog := log.WithField("view", view.Name)
 
 	rLog.Infof("priming cache for view")
-	generator, err := buildGenerator(view, releases, cacheOpts, []crtype.RequestTestIdentificationOptions{{}}, bigQueryClient, dbc, config)
+	generator, err := buildGenerator(view, releases, cacheOpts, []requestoptions.RequestTestIdentificationOptions{{}}, bigQueryClient, dbc, config)
 	if err != nil {
 		return err
 	}
@@ -121,7 +124,7 @@ func primeCacheForView(ctx context.Context, view crtype.View, releases []apiv1.R
 			for _, reg := range col.RegressedTests {
 				// skip if it's resolved, it's far less likely anyone will be loading details for something marked
 				// resolved, and this helps reduce the caching memory when we have mass regressions and clean them up:
-				if reg.ReportStatus < crtype.FixedRegression {
+				if reg.ReportStatus < tier1.FixedRegression {
 					regressedTestsToCache = append(regressedTestsToCache, reg)
 				}
 			}
@@ -136,9 +139,9 @@ func primeCacheForView(ctx context.Context, view crtype.View, releases []apiv1.R
 		rLog.Infof("skipping test details report as no regressed tests are unresolved")
 		return nil
 	}
-	testIDOptions := []crtype.RequestTestIdentificationOptions{}
+	testIDOptions := []requestoptions.RequestTestIdentificationOptions{}
 	for _, regressedTest := range regressedTestsToCache {
-		newTIDOpts := crtype.RequestTestIdentificationOptions{
+		newTIDOpts := requestoptions.RequestTestIdentificationOptions{
 			TestID:            regressedTest.TestID,
 			RequestedVariants: regressedTest.Variants,
 			Component:         regressedTest.Component,
@@ -177,7 +180,7 @@ func primeCacheForView(ctx context.Context, view crtype.View, releases []apiv1.R
 	for _, report := range tdReports {
 		// manipulate cache key per test options
 		genCacheKey := generator.GetCacheKey(ctx)
-		newTIDOpts := crtype.RequestTestIdentificationOptions{
+		newTIDOpts := requestoptions.RequestTestIdentificationOptions{
 			TestID:            report.TestID,
 			RequestedVariants: report.Variants,
 			Component:         report.Component,
@@ -187,7 +190,7 @@ func primeCacheForView(ctx context.Context, view crtype.View, releases []apiv1.R
 		if report.Analyses[0].BaseStats != nil && report.Analyses[0].BaseStats.Release != view.BaseRelease.Release {
 			newTIDOpts.BaseOverrideRelease = report.Analyses[0].BaseStats.Release
 		}
-		genCacheKey.TestIDOptions = []crtype.RequestTestIdentificationOptions{newTIDOpts}
+		genCacheKey.TestIDOptions = []requestoptions.RequestTestIdentificationOptions{newTIDOpts}
 		tempKey := api.GetPrefixedCacheKey("TestDetailsReport~", genCacheKey)
 		cacheKey, err := tempKey.GetCacheKey()
 		if err != nil {
@@ -222,10 +225,10 @@ func generateReport(ctx context.Context, generator *componentreadiness.Component
 }
 
 func buildGenerator(
-	view crtype.View,
+	view view.View,
 	releases []apiv1.Release,
 	cacheOpts cache.RequestOptions,
-	testIDOpts []crtype.RequestTestIdentificationOptions,
+	testIDOpts []requestoptions.RequestTestIdentificationOptions,
 	bigQueryClient *bigquery.Client,
 	dbc *db.DB,
 	config *v1.SippyConfig) (*componentreadiness.ComponentReportGenerator, error) {
@@ -246,7 +249,7 @@ func buildGenerator(
 	advancedOption := view.AdvancedOptions
 
 	// Get component readiness report
-	reqOpts := crtype.RequestOptions{
+	reqOpts := requestoptions.RequestOptions{
 		BaseRelease:    baseRelease,
 		SampleRelease:  sampleRelease,
 		VariantOption:  variantOption,

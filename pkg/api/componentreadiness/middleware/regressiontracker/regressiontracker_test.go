@@ -7,6 +7,8 @@ import (
 
 	"github.com/openshift/sippy/pkg/api/componentreadiness/utils"
 	crtype "github.com/openshift/sippy/pkg/apis/api/componentreport"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/requestoptions"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
 	"github.com/openshift/sippy/pkg/db/models"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -16,15 +18,15 @@ import (
 func TestRegressionTracker_PostAnalysis(t *testing.T) {
 	baseRelease := "4.19"
 	sampleRelease := "4.18"
-	testKey := crtype.ReportTestIdentification{
-		RowIdentification: crtype.RowIdentification{
+	testKey := tier1.ReportTestIdentification{
+		RowIdentification: tier1.RowIdentification{
 			Component:  "foo",
 			Capability: "bar",
 			TestName:   "foobar test 1",
 			TestSuite:  "foo",
 			TestID:     "foobartest1",
 		},
-		ColumnIdentification: crtype.ColumnIdentification{
+		ColumnIdentification: tier1.ColumnIdentification{
 			Variants: map[string]string{
 				"foo": "bar",
 			},
@@ -32,18 +34,18 @@ func TestRegressionTracker_PostAnalysis(t *testing.T) {
 	}
 	variantsStrSlice := utils.VariantsMapToStringSlice(testKey.Variants)
 	mw := RegressionTracker{
-		reqOptions: crtype.RequestOptions{
-			BaseRelease: crtype.RequestReleaseOptions{
+		reqOptions: requestoptions.RequestOptions{
+			BaseRelease: requestoptions.RequestReleaseOptions{
 				Release: baseRelease,
 				Start:   time.Time{},
 				End:     time.Time{},
 			},
-			SampleRelease: crtype.RequestReleaseOptions{
+			SampleRelease: requestoptions.RequestReleaseOptions{
 				Release: sampleRelease,
 				Start:   time.Time{},
 				End:     time.Time{},
 			},
-			AdvancedOption: crtype.RequestAdvancedOptions{
+			AdvancedOption: requestoptions.RequestAdvancedOptions{
 				Confidence: 95,
 			},
 		},
@@ -56,13 +58,13 @@ func TestRegressionTracker_PostAnalysis(t *testing.T) {
 		name                      string
 		testStats                 crtype.ReportTestStats
 		openRegression            models.TestRegression
-		expectStatus              crtype.Status
+		expectStatus              tier1.Status
 		expectedExplanationsCount int
 	}{
 		{
 			name: "triaged regression",
 			testStats: crtype.ReportTestStats{
-				ReportStatus: crtype.ExtremeRegression,
+				ReportStatus: tier1.ExtremeRegression,
 				Explanations: []string{},
 				LastFailure:  &daysAgo4,
 			},
@@ -90,13 +92,13 @@ func TestRegressionTracker_PostAnalysis(t *testing.T) {
 					},
 				},
 			},
-			expectStatus:              crtype.ExtremeTriagedRegression,
+			expectStatus:              tier1.ExtremeTriagedRegression,
 			expectedExplanationsCount: 1,
 		},
 		{
 			name: "triage resolved waiting to clear",
 			testStats: crtype.ReportTestStats{
-				ReportStatus: crtype.ExtremeRegression,
+				ReportStatus: tier1.ExtremeRegression,
 				Explanations: []string{},
 				LastFailure:  &daysAgo4,
 			},
@@ -127,13 +129,13 @@ func TestRegressionTracker_PostAnalysis(t *testing.T) {
 					},
 				},
 			},
-			expectStatus:              crtype.FixedRegression,
+			expectStatus:              tier1.FixedRegression,
 			expectedExplanationsCount: 1,
 		},
 		{
 			name: "triage resolved but has failed since",
 			testStats: crtype.ReportTestStats{
-				ReportStatus: crtype.ExtremeRegression,
+				ReportStatus: tier1.ExtremeRegression,
 				Explanations: []string{},
 				LastFailure:  &daysAgo2,
 			},
@@ -164,13 +166,13 @@ func TestRegressionTracker_PostAnalysis(t *testing.T) {
 					},
 				},
 			},
-			expectStatus:              crtype.FailedFixedRegression,
+			expectStatus:              tier1.FailedFixedRegression,
 			expectedExplanationsCount: 1,
 		},
 		{
 			name: "triage resolved and has cleared entirely",
 			testStats: crtype.ReportTestStats{
-				ReportStatus: crtype.SignificantImprovement,
+				ReportStatus: tier1.SignificantImprovement,
 				Explanations: []string{},
 				LastFailure:  nil,
 			},
@@ -201,13 +203,13 @@ func TestRegressionTracker_PostAnalysis(t *testing.T) {
 					},
 				},
 			},
-			expectStatus:              crtype.SignificantImprovement,
+			expectStatus:              tier1.SignificantImprovement,
 			expectedExplanationsCount: 0,
 		},
 		{
 			name: "triage resolved no longer significant but failures since resolution time",
 			testStats: crtype.ReportTestStats{
-				ReportStatus: crtype.NotSignificant,
+				ReportStatus: tier1.NotSignificant,
 				Explanations: []string{},
 				LastFailure:  &daysAgo2,
 			},
@@ -238,7 +240,7 @@ func TestRegressionTracker_PostAnalysis(t *testing.T) {
 					},
 				},
 			},
-			expectStatus:              crtype.NotSignificant,
+			expectStatus:              tier1.NotSignificant,
 			expectedExplanationsCount: 0,
 		},
 	}

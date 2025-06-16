@@ -7,6 +7,9 @@ import (
 	"github.com/lib/pq"
 	"github.com/openshift/sippy/pkg/api/componentreadiness"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/requestoptions"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
+	view2 "github.com/openshift/sippy/pkg/apis/api/componentreport/view"
 	"github.com/openshift/sippy/pkg/db"
 	"github.com/openshift/sippy/pkg/db/models"
 	"github.com/openshift/sippy/test/e2e/util"
@@ -15,10 +18,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var view = componentreport.View{
+var view = view2.View{
 	Name: "4.19-main",
-	SampleRelease: componentreport.RequestRelativeReleaseOptions{
-		RequestReleaseOptions: componentreport.RequestReleaseOptions{
+	SampleRelease: requestoptions.RequestRelativeReleaseOptions{
+		RequestReleaseOptions: requestoptions.RequestReleaseOptions{
 			Release: "4.19",
 		},
 	},
@@ -289,17 +292,17 @@ func Test_TriageRawDB(t *testing.T) {
 	})
 }
 
-func createTestRegression(t *testing.T, tracker componentreadiness.RegressionStore, view componentreport.View, testID string) *models.TestRegression {
+func createTestRegression(t *testing.T, tracker componentreadiness.RegressionStore, view view2.View, testID string) *models.TestRegression {
 	newRegression := componentreport.ReportTestSummary{
-		ReportTestIdentification: componentreport.ReportTestIdentification{
-			RowIdentification: componentreport.RowIdentification{
+		ReportTestIdentification: tier1.ReportTestIdentification{
+			RowIdentification: tier1.RowIdentification{
 				Component:  "comp",
 				Capability: "cap",
 				TestName:   "fake test",
 				TestSuite:  "fakesuite",
 				TestID:     testID,
 			},
-			ColumnIdentification: componentreport.ColumnIdentification{
+			ColumnIdentification: tier1.ColumnIdentification{
 				Variants: map[string]string{
 					"a": "b",
 					"c": "d",

@@ -6,15 +6,18 @@ import (
 	"time"
 
 	crtype "github.com/openshift/sippy/pkg/apis/api/componentreport"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/bq"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/requestoptions"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
 	"github.com/stretchr/testify/assert"
 )
 
 func Test_PreAnalysis(t *testing.T) {
-	reqOpts419 := crtype.RequestOptions{
-		BaseRelease: crtype.RequestReleaseOptions{
+	reqOpts419 := requestoptions.RequestOptions{
+		BaseRelease: requestoptions.RequestReleaseOptions{
 			Release: "4.19",
 		},
-		AdvancedOption: crtype.RequestAdvancedOptions{IncludeMultiReleaseAnalysis: true},
+		AdvancedOption: requestoptions.RequestAdvancedOptions{IncludeMultiReleaseAnalysis: true},
 	}
 	test1ID := "test1ID"
 	test1Variants := map[string]string{
@@ -29,15 +32,15 @@ func Test_PreAnalysis(t *testing.T) {
 	test1KeyBytes, err := json.Marshal(test1MapKey)
 	test1KeyStr := string(test1KeyBytes)
 	assert.NoError(t, err)
-	test1RTI := crtype.ReportTestIdentification{
-		RowIdentification: crtype.RowIdentification{
+	test1RTI := tier1.ReportTestIdentification{
+		RowIdentification: tier1.RowIdentification{
 			Component:  "",
 			Capability: "",
 			TestName:   "test 1",
 			TestSuite:  "",
 			TestID:     test1ID,
 		},
-		ColumnIdentification: crtype.ColumnIdentification{
+		ColumnIdentification: tier1.ColumnIdentification{
 			Variants: test1Variants,
 		},
 	}
@@ -45,7 +48,7 @@ func Test_PreAnalysis(t *testing.T) {
 	// 4.19 will be our assumed requested base release, which may trigger fallback to 4.18 or 4.17 in these tests
 	start419 := time.Date(2025, 3, 2, 0, 0, 0, 0, time.UTC)
 	end419 := time.Date(2025, 4, 30, 0, 0, 0, 0, time.UTC)
-	release419 := crtype.Release{
+	release419 := tier1.Release{
 		Release: "4.19",
 		Start:   &start419,
 		End:     &end419,
@@ -53,36 +56,36 @@ func Test_PreAnalysis(t *testing.T) {
 
 	start418 := time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC)
 	end418 := time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC)
-	release418 := crtype.Release{
+	release418 := tier1.Release{
 		Release: "4.18",
 		Start:   &start418,
 		End:     &end418,
 	}
 	fallbackMap418 := crtype.ReleaseTestMap{
 		Release: release418,
-		Tests: map[string]crtype.TestStatus{
+		Tests: map[string]bq.TestStatus{
 			test1KeyStr: buildTestStatus("test1", test1VariantsFlattened, 100, 95, 0),
 		},
 	}
 
 	start417 := time.Date(2024, 12, 1, 0, 0, 0, 0, time.UTC)
 	end417 := time.Date(2024, 12, 31, 0, 0, 0, 0, time.UTC)
-	release417 := crtype.Release{
+	release417 := tier1.Release{
 		Release: "4.17",
 		Start:   &start417,
 		End:     &end417,
 	}
 	fallbackMap417 := crtype.ReleaseTestMap{
 		Release: release417,
-		Tests: map[string]crtype.TestStatus{
+		Tests: map[string]bq.TestStatus{
 			test1KeyStr: buildTestStatus("test1", test1VariantsFlattened, 100, 98, 0),
 		},
 	}
 
 	tests := []struct {
 		name             string
-		reqOpts          crtype.RequestOptions
-		testKey          crtype.ReportTestIdentification
+		reqOpts          requestoptions.RequestOptions
+		testKey          tier1.ReportTestIdentification
 		fallbackReleases crtype.FallbackReleases
 		testStats        *crtype.ReportTestStats
 		expectedStatus   *crtype.ReportTestStats
@@ -165,7 +168,7 @@ func Test_PreAnalysis(t *testing.T) {
 func TestCalculateFallbackReleases(t *testing.T) {
 	start419 := time.Date(2025, 3, 2, 0, 0, 0, 0, time.UTC)
 	end419 := time.Date(2025, 4, 30, 0, 0, 0, 0, time.UTC)
-	release419 := crtype.Release{
+	release419 := tier1.Release{
 		Release: "4.19",
 		Start:   &start419,
 		End:     &end419,
@@ -173,7 +176,7 @@ func TestCalculateFallbackReleases(t *testing.T) {
 
 	start418 := time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC)
 	end418 := time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC)
-	release418 := crtype.Release{
+	release418 := tier1.Release{
 		Release: "4.18",
 		Start:   &start418,
 		End:     &end418,
@@ -181,7 +184,7 @@ func TestCalculateFallbackReleases(t *testing.T) {
 
 	start417 := time.Date(2024, 12, 1, 0, 0, 0, 0, time.UTC)
 	end417 := time.Date(2024, 12, 31, 0, 0, 0, 0, time.UTC)
-	release417 := crtype.Release{
+	release417 := tier1.Release{
 		Release: "4.17",
 		Start:   &start417,
 		End:     &end417,
@@ -189,14 +192,14 @@ func TestCalculateFallbackReleases(t *testing.T) {
 
 	start416 := time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC)
 	end416 := time.Date(2024, 6, 30, 0, 0, 0, 0, time.UTC)
-	release416 := crtype.Release{
+	release416 := tier1.Release{
 		Release: "4.16",
 		Start:   &start416,
 		End:     &end416,
 	}
 
-	allReleases := []crtype.Release{release419, release418, release417, release416}
-	expectedReleases := []crtype.Release{release419, release418, release417}
+	allReleases := []tier1.Release{release419, release418, release417, release416}
+	expectedReleases := []tier1.Release{release419, release418, release417}
 
 	fallbackReleases := calculateFallbackReleases("4.20", allReleases)
 	for i := range expectedReleases {
@@ -207,14 +210,14 @@ func TestCalculateFallbackReleases(t *testing.T) {
 }
 
 //nolint:unparam
-func buildTestStatus(testName string, variants []string, total, success, flake int) crtype.TestStatus {
-	return crtype.TestStatus{
+func buildTestStatus(testName string, variants []string, total, success, flake int) bq.TestStatus {
+	return bq.TestStatus{
 		TestName:     testName,
 		TestSuite:    "conformance",
 		Component:    "foo",
 		Capabilities: nil,
 		Variants:     variants,
-		TestCount: crtype.TestCount{
+		TestCount: bq.TestCount{
 			TotalCount:   total,
 			SuccessCount: success,
 			FlakeCount:   flake,
@@ -222,7 +225,7 @@ func buildTestStatus(testName string, variants []string, total, success, flake i
 	}
 }
 
-func buildTestStats(total, success int, baseRelease crtype.Release, explanations []string) *crtype.ReportTestStats {
+func buildTestStats(total, success int, baseRelease tier1.Release, explanations []string) *crtype.ReportTestStats {
 	fails := total - success
 	ts := &crtype.ReportTestStats{
 		BaseStats: &crtype.TestDetailsReleaseStats{

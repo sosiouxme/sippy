@@ -7,6 +7,9 @@ import (
 
 	"github.com/openshift/sippy/pkg/api/componentreadiness/middleware"
 	"github.com/openshift/sippy/pkg/api/componentreadiness/utils"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/bq"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/requestoptions"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
 	"github.com/openshift/sippy/pkg/regressionallowances"
 	log "github.com/sirupsen/logrus"
 
@@ -15,7 +18,7 @@ import (
 
 var _ middleware.Middleware = &RegressionAllowances{}
 
-func NewRegressionAllowancesMiddleware(reqOptions crtype.RequestOptions) *RegressionAllowances {
+func NewRegressionAllowancesMiddleware(reqOptions requestoptions.RequestOptions) *RegressionAllowances {
 	return &RegressionAllowances{
 		log:                  log.WithField("middleware", "RegressionAllowances"),
 		reqOptions:           reqOptions,
@@ -29,21 +32,21 @@ func NewRegressionAllowancesMiddleware(reqOptions crtype.RequestOptions) *Regres
 // prior release which had a regression in the window prior to GA.
 type RegressionAllowances struct {
 	log        log.FieldLogger
-	reqOptions crtype.RequestOptions
+	reqOptions requestoptions.RequestOptions
 
 	// regressionGetterFunc allows us to unit test without relying on real regression data
-	regressionGetterFunc func(releaseString string, variant crtype.ColumnIdentification, testID string) *regressionallowances.IntentionalRegression
+	regressionGetterFunc func(releaseString string, variant tier1.ColumnIdentification, testID string) *regressionallowances.IntentionalRegression
 }
 
 func (r *RegressionAllowances) Query(_ context.Context, _ *sync.WaitGroup, _ crtype.JobVariants,
-	_, _ chan map[string]crtype.TestStatus, _ chan error) {
+	_, _ chan map[string]bq.TestStatus, _ chan error) {
 	// unused
 }
 
 // PreAnalysis iterates the base status looking for any with an accepted regression in the basis release, and if found
 // swaps out the stats with the better pass rate data specified in the intentional regression allowance.
 // It also iterates the sample looking for intentional regressions and adjusts the analysis parameters accordingly.
-func (r *RegressionAllowances) PreAnalysis(testKey crtype.ReportTestIdentification, testStats *crtype.ReportTestStats) error {
+func (r *RegressionAllowances) PreAnalysis(testKey tier1.ReportTestIdentification, testStats *crtype.ReportTestStats) error {
 
 	// for intentional regression in the base
 	r.matchBaseRegression(testKey, r.reqOptions.BaseRelease.Release, testStats)
@@ -56,7 +59,7 @@ func (r *RegressionAllowances) PreAnalysis(testKey crtype.ReportTestIdentificati
 	return nil
 }
 
-func (r *RegressionAllowances) PostAnalysis(testKey crtype.ReportTestIdentification, testStats *crtype.ReportTestStats) error {
+func (r *RegressionAllowances) PostAnalysis(testKey tier1.ReportTestIdentification, testStats *crtype.ReportTestStats) error {
 	return nil
 }
 
@@ -64,7 +67,7 @@ func (r *RegressionAllowances) PostAnalysis(testKey crtype.ReportTestIdentificat
 // in an intentional regression that accepted a lower threshold but maintains the higher
 // threshold when used as a basis.
 // It will return the original testStatus if there is no intentional regression.
-func (r *RegressionAllowances) matchBaseRegression(testID crtype.ReportTestIdentification, baseRelease string, testStats *crtype.ReportTestStats) {
+func (r *RegressionAllowances) matchBaseRegression(testID tier1.ReportTestIdentification, baseRelease string, testStats *crtype.ReportTestStats) {
 	opts := r.reqOptions.AdvancedOption
 	// Nothing to do for tests with no basis. (i.e. new tests)
 	if testStats.BaseStats == nil {
@@ -72,7 +75,7 @@ func (r *RegressionAllowances) matchBaseRegression(testID crtype.ReportTestIdent
 	}
 
 	// with fallback enabled and a fallback release found, let that determine the threshold across bases without the munging done below.
-	if opts.IncludeMultiReleaseAnalysis && crtype.AnyAreBaseOverrides(r.reqOptions.TestIDOptions) {
+	if opts.IncludeMultiReleaseAnalysis && requestoptions.AnyAreBaseOverrides(r.reqOptions.TestIDOptions) {
 		return
 	}
 

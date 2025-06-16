@@ -8,7 +8,9 @@ import (
 	"time"
 
 	"github.com/openshift/sippy/pkg/api"
-	crtype "github.com/openshift/sippy/pkg/apis/api/componentreport"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/requestoptions"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/view"
 	configv1 "github.com/openshift/sippy/pkg/apis/config/v1"
 	v1 "github.com/openshift/sippy/pkg/apis/sippy/v1"
 	"github.com/openshift/sippy/pkg/util"
@@ -17,14 +19,14 @@ import (
 
 // nolint:gocyclo
 func ParseComponentReportRequest(
-	views []crtype.View,
+	views []view.View,
 	releases []v1.Release,
 	req *http.Request,
-	allJobVariants crtype.JobVariants,
+	allJobVariants componentreport.JobVariants,
 	crTimeRoundingFactor time.Duration,
 	overrides []configv1.VariantJunitTableOverride,
 ) (
-	opts crtype.RequestOptions,
+	opts requestoptions.RequestOptions,
 	err error,
 ) {
 	// Check if the user specified a view, in which case only some query params can be used.
@@ -84,7 +86,7 @@ func ParseComponentReportRequest(
 	// Params below this point can be used with and without views:
 	// TODO: leave nil for safer cache keys if params not set, sync with metrics and primecache.go
 	// TODO: unit test that metrics and primecache cache keys match a request object here
-	opts.TestIDOptions = []crtype.RequestTestIdentificationOptions{
+	opts.TestIDOptions = []requestoptions.RequestTestIdentificationOptions{
 		{
 			// these are semi-freeform and only used in lookup keys, so don't need validation
 			Component:  req.URL.Query().Get("component"),
@@ -129,7 +131,7 @@ func ParseComponentReportRequest(
 }
 
 // getRequestedView returns the view requested per the view param, or nil if none.
-func getRequestedView(req *http.Request, views []crtype.View) (*crtype.View, error) {
+func getRequestedView(req *http.Request, views []view.View) (*view.View, error) {
 	viewRequested := req.URL.Query().Get("view") // used only to lookup by view name
 	if viewRequested == "" {
 		return nil, nil
@@ -168,12 +170,12 @@ func getRequestedView(req *http.Request, views []crtype.View) (*crtype.View, err
 func GetViewReleaseOptions(
 	releases []v1.Release,
 	releaseType string,
-	viewRelease crtype.RequestRelativeReleaseOptions,
+	viewRelease requestoptions.RequestRelativeReleaseOptions,
 	roundingFactor time.Duration,
-) (crtype.RequestReleaseOptions, error) {
+) (requestoptions.RequestReleaseOptions, error) {
 
 	var err error
-	opts := crtype.RequestReleaseOptions{Release: viewRelease.Release}
+	opts := requestoptions.RequestReleaseOptions{Release: viewRelease.Release}
 	opts.Start, err = util.ParseCRReleaseTime(releases, opts.Release, viewRelease.RelativeStart, true, nil, roundingFactor)
 	if err != nil {
 		return opts, fmt.Errorf("%s start time %q in wrong format: %v", releaseType, viewRelease.RelativeStart, err)
@@ -185,8 +187,8 @@ func GetViewReleaseOptions(
 	return opts, nil
 }
 
-func parsePROptions(req *http.Request) *crtype.PullRequestOptions {
-	pro := crtype.PullRequestOptions{
+func parsePROptions(req *http.Request) *requestoptions.PullRequestOptions {
+	pro := requestoptions.PullRequestOptions{
 		Org:      param.SafeRead(req, "samplePROrg"),
 		Repo:     param.SafeRead(req, "samplePRRepo"),
 		PRNumber: param.SafeRead(req, "samplePRNumber"),
@@ -197,8 +199,8 @@ func parsePROptions(req *http.Request) *crtype.PullRequestOptions {
 	return &pro
 }
 
-func parsePayloadOptions(req *http.Request) *crtype.PayloadOptions {
-	po := crtype.PayloadOptions{
+func parsePayloadOptions(req *http.Request) *requestoptions.PayloadOptions {
+	po := requestoptions.PayloadOptions{
 		Tag: param.SafeRead(req, "samplePayloadTag"),
 	}
 	if po.Tag == "" {
@@ -207,7 +209,7 @@ func parsePayloadOptions(req *http.Request) *crtype.PayloadOptions {
 	return &po
 }
 
-func parseVariantOptions(req *http.Request, allJobVariants crtype.JobVariants, overrides []configv1.VariantJunitTableOverride) (opts crtype.RequestVariantOptions, err error) {
+func parseVariantOptions(req *http.Request, allJobVariants componentreport.JobVariants, overrides []configv1.VariantJunitTableOverride) (opts requestoptions.RequestVariantOptions, err error) {
 	columnGroupBy := req.URL.Query().Get("columnGroupBy")
 	opts.ColumnGroupBy, err = api.VariantsStringToSet(allJobVariants, columnGroupBy)
 	if err != nil {
@@ -296,7 +298,7 @@ func ParseBoolArg(req *http.Request, name string, defaultVal bool) (bool, error)
 	return val, nil
 }
 
-func parseAdvancedOptions(req *http.Request) (advancedOption crtype.RequestAdvancedOptions, err error) {
+func parseAdvancedOptions(req *http.Request) (advancedOption requestoptions.RequestAdvancedOptions, err error) {
 	advancedOption.Confidence, err = ParseIntArg(req, "confidence", 95,
 		func(v int) bool { return v >= 0 && v <= 100 })
 	if err != nil {
@@ -351,10 +353,10 @@ func parseAdvancedOptions(req *http.Request) (advancedOption crtype.RequestAdvan
 }
 
 func parseDateRange(allReleases []v1.Release, req *http.Request,
-	releaseOpts crtype.RequestReleaseOptions,
+	releaseOpts requestoptions.RequestReleaseOptions,
 	startName string, endName string,
 	roundingFactor time.Duration,
-) (crtype.RequestReleaseOptions, error) {
+) (requestoptions.RequestReleaseOptions, error) {
 	var err error
 
 	timeStr := req.URL.Query().Get(startName)

@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	crtype "github.com/openshift/sippy/pkg/apis/api/componentreport"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/requestoptions"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
 	"github.com/openshift/sippy/pkg/regressionallowances"
 	"github.com/stretchr/testify/assert"
 )
@@ -17,7 +19,7 @@ func Test_PreAnalysis(t *testing.T) {
 		"Arch":     "amd64",
 		"Platform": "aws",
 	}
-	regressionGetter := func(releaseString string, variant crtype.ColumnIdentification, testID string) *regressionallowances.IntentionalRegression {
+	regressionGetter := func(releaseString string, variant tier1.ColumnIdentification, testID string) *regressionallowances.IntentionalRegression {
 		if releaseString == "4.18" && reflect.DeepEqual(variant.Variants, variants) && testID == test1ID {
 			return &regressionallowances.IntentionalRegression{
 				TestID:             test1ID,
@@ -46,45 +48,45 @@ func Test_PreAnalysis(t *testing.T) {
 		}
 		return nil
 	}
-	reqOpts419 := crtype.RequestOptions{
-		SampleRelease: crtype.RequestReleaseOptions{Release: "4.19"},
-		BaseRelease:   crtype.RequestReleaseOptions{Release: "4.18"},
-		AdvancedOption: crtype.RequestAdvancedOptions{
+	reqOpts419 := requestoptions.RequestOptions{
+		SampleRelease: requestoptions.RequestReleaseOptions{Release: "4.19"},
+		BaseRelease:   requestoptions.RequestReleaseOptions{Release: "4.18"},
+		AdvancedOption: requestoptions.RequestAdvancedOptions{
 			IncludeMultiReleaseAnalysis: true,
 			PassRateRequiredNewTests:    95,
 		},
 	}
 	reqOpts419Fallback := reqOpts419
-	reqOpts419Fallback.TestIDOptions = []crtype.RequestTestIdentificationOptions{{BaseOverrideRelease: "4.17"}}
+	reqOpts419Fallback.TestIDOptions = []requestoptions.RequestTestIdentificationOptions{{BaseOverrideRelease: "4.17"}}
 	reqOpts420Fallback := reqOpts419
 	reqOpts420Fallback.SampleRelease.Release = "4.20"
 	reqOpts420Fallback.BaseRelease.Release = "4.19"
 
-	test1Key := crtype.ReportTestIdentification{
-		RowIdentification: crtype.RowIdentification{
+	test1Key := tier1.ReportTestIdentification{
+		RowIdentification: tier1.RowIdentification{
 			TestName: "test 1",
 			TestID:   test1ID,
 		},
-		ColumnIdentification: crtype.ColumnIdentification{
+		ColumnIdentification: tier1.ColumnIdentification{
 			Variants: variants,
 		},
 	}
 
-	test2Key := crtype.ReportTestIdentification{
-		RowIdentification: crtype.RowIdentification{
+	test2Key := tier1.ReportTestIdentification{
+		RowIdentification: tier1.RowIdentification{
 			TestName: "test 2",
 			TestID:   test2ID,
 		},
-		ColumnIdentification: crtype.ColumnIdentification{
+		ColumnIdentification: tier1.ColumnIdentification{
 			Variants: variants,
 		},
 	}
 
 	tests := []struct {
 		name             string
-		testKey          crtype.ReportTestIdentification
-		reqOpts          crtype.RequestOptions
-		regressionGetter func(releaseString string, variant crtype.ColumnIdentification, testID string) *regressionallowances.IntentionalRegression
+		testKey          tier1.ReportTestIdentification
+		reqOpts          requestoptions.RequestOptions
+		regressionGetter func(releaseString string, variant tier1.ColumnIdentification, testID string) *regressionallowances.IntentionalRegression
 		testStatus       *crtype.ReportTestStats
 		expectedStatus   *crtype.ReportTestStats
 	}{
