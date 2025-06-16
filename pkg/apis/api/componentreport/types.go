@@ -1,12 +1,12 @@
 package componentreport
 
 import (
-	"encoding/json"
 	"math/big"
 	"time"
 
 	"cloud.google.com/go/civil"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/bq"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/test"
 	crtier1 "github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
 	"github.com/openshift/sippy/pkg/db/models"
 )
@@ -102,83 +102,15 @@ type TestDetailsReleaseStats struct {
 	Release string `json:"release"`
 	Start   *time.Time
 	End     *time.Time
-	TestDetailsTestStats
-}
-
-type TestDetailsTestStats struct {
-	SuccessCount int `json:"success_count"`
-	FailureCount int `json:"failure_count"`
-	FlakeCount   int `json:"flake_count"`
-	// calculate from the above with PassRate method:
-	SuccessRate float64 `json:"success_rate"`
-}
-
-func (tdts TestDetailsTestStats) Total() int {
-	return tdts.SuccessCount + tdts.FailureCount + tdts.FlakeCount
-}
-
-func (tdts TestDetailsTestStats) Passes(flakesAsFailure bool) int {
-	if flakesAsFailure {
-		return tdts.SuccessCount
-	}
-	return tdts.SuccessCount + tdts.FlakeCount
-}
-
-func (tdts TestDetailsTestStats) PassRate(flakesAsFailure bool) float64 {
-	return CalculatePassRate(tdts.SuccessCount, tdts.FailureCount, tdts.FlakeCount, flakesAsFailure)
-}
-
-func (tdts TestDetailsTestStats) Add(add TestDetailsTestStats, flakesAsFailure bool) TestDetailsTestStats {
-	return NewTestStats(
-		tdts.SuccessCount+add.SuccessCount,
-		tdts.FailureCount+add.FailureCount,
-		tdts.FlakeCount+add.FlakeCount,
-		flakesAsFailure,
-	)
-}
-
-func (tdts TestDetailsTestStats) AddTestCount(add bq.TestCount, flakesAsFailure bool) TestDetailsTestStats {
-	return NewTestStats(
-		tdts.SuccessCount+add.SuccessCount,
-		tdts.FailureCount+add.Failures(),
-		tdts.FlakeCount+add.FlakeCount,
-		flakesAsFailure,
-	)
-}
-
-func (tdts TestDetailsTestStats) FailPassWithFlakes(flakesAsFailure bool) (int, int) {
-	if flakesAsFailure {
-		return tdts.FailureCount + tdts.FlakeCount, tdts.SuccessCount
-	}
-	return tdts.FailureCount, tdts.SuccessCount + tdts.FlakeCount
-}
-
-func NewTestStats(successCount, failureCount, flakeCount int, flakesAsFailure bool) TestDetailsTestStats {
-	return TestDetailsTestStats{
-		SuccessCount: successCount,
-		FailureCount: failureCount,
-		FlakeCount:   flakeCount,
-		SuccessRate:  CalculatePassRate(successCount, failureCount, flakeCount, flakesAsFailure),
-	}
-}
-
-func CalculatePassRate(success, failure, flake int, treatFlakeAsFailure bool) float64 {
-	total := success + failure + flake
-	if total == 0 {
-		return 0.0
-	}
-	if treatFlakeAsFailure {
-		return float64(success) / float64(total)
-	}
-	return float64(success+flake) / float64(total)
+	test.Stats
 }
 
 type TestDetailsJobStats struct {
 	// one of sample/base job name could be missing if jobs change between releases
 	SampleJobName     string                   `json:"sample_job_name,omitempty"`
 	BaseJobName       string                   `json:"base_job_name,omitempty"`
-	SampleStats       TestDetailsTestStats     `json:"sample_stats"`
-	BaseStats         TestDetailsTestStats     `json:"base_stats"`
+	SampleStats       test.Stats               `json:"sample_stats"`
+	BaseStats         test.Stats               `json:"base_stats"`
 	SampleJobRunStats []TestDetailsJobRunStats `json:"sample_job_run_stats,omitempty"`
 	BaseJobRunStats   []TestDetailsJobRunStats `json:"base_job_run_stats,omitempty"`
 	Significant       bool                     `json:"significant"`
@@ -191,7 +123,7 @@ type TestDetailsJobRunStats struct {
 	// TestStats is the test stats from one particular job run.
 	// For the majority of the tests, there is only one junit. But
 	// there are cases multiple junits are generated for the same test.
-	TestStats TestDetailsTestStats `json:"test_stats"`
+	TestStats test.Stats `json:"test_stats"`
 }
 
 // TestJobRunStatuses contains the rows returned from a test details query organized by base and sample,
@@ -219,23 +151,4 @@ type TestVariants struct {
 // JobVariants contains all variants supported in the system.
 type JobVariants struct {
 	Variants map[string][]string `json:"variants,omitempty"`
-}
-
-// TestWithVariantsKey connects the core unique db testID string to a set of variants.
-// Used to serialize/deserialize as a map key when we pass test status around.
-type TestWithVariantsKey struct {
-	TestID string `json:"test_id"`
-
-	// Proposed, need to serialize to use as map key
-	Variants map[string]string `json:"variants"`
-}
-
-// KeyOrDie serializes this test key into a json string suitable for use in maps.
-// JSON serialization uses sorted map keys, so the output is stable.
-func (t TestWithVariantsKey) KeyOrDie() string {
-	testIDBytes, err := json.Marshal(t)
-	if err != nil {
-		panic(err)
-	}
-	return string(testIDBytes)
 }

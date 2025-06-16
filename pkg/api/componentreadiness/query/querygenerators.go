@@ -13,6 +13,7 @@ import (
 	"cloud.google.com/go/civil"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/bq"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/requestoptions"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/test"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/api/iterator"
@@ -633,7 +634,7 @@ func deserializeRowToTestStatus(row []bigquery.Value, schema bigquery.Schema) (s
 	// INFO[2024-04-22T13:31:23.124-03:00] jira_component_id = 12367602000000000/1000000000
 	// INFO[2024-04-22T13:31:23.124-03:00] test_name = [sig-storage] [Serial] Volume metrics Ephemeral should create volume metrics in Volume Manager [Suite:openshift/conformance/serial] [Suite:k8s]
 	// INFO[2024-04-22T13:31:23.124-03:00] test_suite = openshift-tests
-	tid := crtype.TestWithVariantsKey{
+	tid := test.KeyWithVariants{
 		Variants: map[string]string{},
 	}
 	cts := bq.TestStatus{}
@@ -935,7 +936,7 @@ func deserializeRowToJobRunTestReportStatus(row []bigquery.Value, schema bigquer
 	}
 
 	cts := bq.TestJobRunRows{
-		TestKey: crtype.TestWithVariantsKey{Variants: map[string]string{}},
+		TestKey: test.KeyWithVariants{Variants: map[string]string{}},
 	}
 	for i, fieldSchema := range schema {
 		col := fieldSchema.Name

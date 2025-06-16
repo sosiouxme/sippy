@@ -13,6 +13,7 @@ import (
 	fet "github.com/glycerine/golang-fisher-exact"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/bq"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/requestoptions"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/test"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
 	"github.com/openshift/sippy/pkg/db"
 	"github.com/openshift/sippy/pkg/util/sets"
@@ -159,7 +160,7 @@ func (c *ComponentReportGenerator) GenerateTestDetailsReportMultiTest(ctx contex
 
 	reports := []crtype.ReportTestDetails{}
 	for _, tOpt := range c.ReqOptions.TestIDOptions {
-		testKey := crtype.TestWithVariantsKey{
+		testKey := test.KeyWithVariants{
 			TestID:   tOpt.TestID,
 			Variants: tOpt.RequestedVariants,
 		}
@@ -222,7 +223,7 @@ func (c *ComponentReportGenerator) GenerateDetailsReportForTest(ctx context.Cont
 	if testIDOption.BaseOverrideRelease != "" &&
 		testIDOption.BaseOverrideRelease != c.ReqOptions.BaseRelease.Release {
 
-		testKey := crtype.TestWithVariantsKey{
+		testKey := test.KeyWithVariants{
 			TestID:   testIDOption.TestID,
 			Variants: testIDOption.RequestedVariants,
 		}
@@ -473,16 +474,16 @@ func (c *ComponentReportGenerator) internalGenerateTestDetailsReport(
 	testStats := crtype.ReportTestStats{
 		RequiredConfidence: c.ReqOptions.AdvancedOption.Confidence,
 		SampleStats: crtype.TestDetailsReleaseStats{
-			Release:              c.ReqOptions.SampleRelease.Release,
-			Start:                &c.ReqOptions.SampleRelease.Start,
-			End:                  &c.ReqOptions.SampleRelease.End,
-			TestDetailsTestStats: totalSample,
+			Release: c.ReqOptions.SampleRelease.Release,
+			Start:   &c.ReqOptions.SampleRelease.Start,
+			End:     &c.ReqOptions.SampleRelease.End,
+			Stats:   totalSample,
 		},
 		BaseStats: &crtype.TestDetailsReleaseStats{
-			Release:              baseRelease,
-			Start:                baseStart,
-			End:                  baseEnd,
-			TestDetailsTestStats: totalBase,
+			Release: baseRelease,
+			Start:   baseStart,
+			End:     baseEnd,
+			Stats:   totalBase,
 		},
 	}
 	if !lastFailure.IsZero() {
@@ -504,7 +505,7 @@ func (c *ComponentReportGenerator) internalGenerateTestDetailsReport(
 func (c *ComponentReportGenerator) summarizeRecordedTestStats(
 	baseStatus, sampleStatus map[string][]bq.TestJobRunRows, testKey tier1.ReportTestIdentification,
 ) (
-	totalBase, totalSample crtype.TestDetailsTestStats,
+	totalBase, totalSample test.Stats,
 	report crtype.TestDetailsAnalysis,
 	result crtype.ReportTestDetails,
 	lastFailure time.Time, // track the last failure we observe in the sample, used by triage middleware to adjust status
@@ -548,7 +549,7 @@ func (c *ComponentReportGenerator) summarizeRecordedTestStats(
 // and updates by-reference parameters with information found in the job rows.
 func (c *ComponentReportGenerator) assessTestStats(
 	jobRowsList []bq.TestJobRunRows,
-	testStats *crtype.TestDetailsTestStats,
+	testStats *test.Stats,
 	jobRunStatsList *[]crtype.TestDetailsJobRunStats,
 	jobName *string, lastFailure *time.Time,
 	result *crtype.ReportTestDetails,
@@ -572,14 +573,14 @@ func (c *ComponentReportGenerator) assessTestStats(
 			result.TestName = jobRow.TestName
 		}
 
-		*testStats = testStats.AddTestCount(jobRow.TestCount, flakeAsFailure)
+		*testStats = testStats.AddTestCount(jobRow.Count, flakeAsFailure)
 		*jobRunStatsList = append(*jobRunStatsList, c.getJobRunStats(jobRow))
 	}
 }
 
 func (c *ComponentReportGenerator) getJobRunStats(stats bq.TestJobRunRows) crtype.TestDetailsJobRunStats {
 	jobRunStats := crtype.TestDetailsJobRunStats{
-		TestStats: crtype.NewTestStats(
+		TestStats: test.NewStats(
 			stats.SuccessCount,
 			stats.Failures(),
 			stats.FlakeCount,

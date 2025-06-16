@@ -9,6 +9,7 @@ import (
 	"github.com/openshift/sippy/pkg/api/componentreadiness/utils"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/bq"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/requestoptions"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/test"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
 	"github.com/openshift/sippy/pkg/regressionallowances"
 	log "github.com/sirupsen/logrus"
@@ -92,7 +93,7 @@ func (r *RegressionAllowances) matchBaseRegression(testID tier1.ReportTestIdenti
 	r.log.Infof("found a base regression for %s", testID.TestName)
 
 	baseStats := testStats.BaseStats
-	overrideTestStats := crtype.NewTestStats(baseRegression.PreviousSuccesses, baseRegression.PreviousFailures, baseRegression.PreviousFlakes, opts.FlakeAsFailure)
+	overrideTestStats := test.NewStats(baseRegression.PreviousSuccesses, baseRegression.PreviousFailures, baseRegression.PreviousFlakes, opts.FlakeAsFailure)
 	if overrideTestStats.SuccessRate > baseStats.PassRate(opts.FlakeAsFailure) {
 		// override with  the basis regression previous values
 		// testStats will reflect the expected threshold, not the computed values from the release with the allowed regression
@@ -101,7 +102,7 @@ func (r *RegressionAllowances) matchBaseRegression(testID tier1.ReportTestIdenti
 			r.log.WithError(err).Error("Failed to determine the previous release for base regression")
 		} else if overrideTestStats.Total() > 0 { // only override if there is history to override with
 			testStats.BaseStats.Release = baseRegressionPreviousRelease
-			testStats.BaseStats.TestDetailsTestStats = overrideTestStats
+			testStats.BaseStats.Stats = overrideTestStats
 			r.log.Infof("BaseRegression - PreviousPassPercentage overrides baseStats.  Release: %s, Successes: %d, Flakes: %d",
 				baseRegressionPreviousRelease, baseStats.SuccessCount, baseStats.FlakeCount)
 		}
@@ -149,6 +150,6 @@ func (r *RegressionAllowances) adjustAnalysisParameters(testStats *crtype.Report
 func (r *RegressionAllowances) QueryTestDetails(ctx context.Context, wg *sync.WaitGroup, errCh chan error, allJobVariants crtype.JobVariants) {
 }
 
-func (r *RegressionAllowances) PreTestDetailsAnalysis(testKey crtype.TestWithVariantsKey, status *crtype.TestJobRunStatuses) error {
+func (r *RegressionAllowances) PreTestDetailsAnalysis(testKey test.KeyWithVariants, status *crtype.TestJobRunStatuses) error {
 	return nil
 }

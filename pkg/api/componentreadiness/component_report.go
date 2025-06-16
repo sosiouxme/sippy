@@ -21,6 +21,7 @@ import (
 	"github.com/openshift/sippy/pkg/api/componentreadiness/middleware/regressiontracker"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/bq"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/requestoptions"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/test"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -613,16 +614,16 @@ func containsOverriddenVariant(includeVariants map[string][]string, key, value s
 	return false
 }
 
-var componentAndCapabilityGetter func(test crtype.TestWithVariantsKey, stats bq.TestStatus) (string, []string)
+var componentAndCapabilityGetter func(test test.KeyWithVariants, stats bq.TestStatus) (string, []string)
 
-func testToComponentAndCapability(_ crtype.TestWithVariantsKey, stats bq.TestStatus) (string, []string) {
+func testToComponentAndCapability(_ test.KeyWithVariants, stats bq.TestStatus) (string, []string) {
 	return stats.Component, stats.Capabilities
 }
 
 // getRowColumnIdentifications defines the rows and columns since they are variable. For rows, different pages have different row titles (component, capability etc)
 // Columns titles depends on the columnGroupBy parameter user requests. A particular test can belong to multiple rows of different capabilities.
 func (c *ComponentReportGenerator) getRowColumnIdentifications(testIDStr string, stats bq.TestStatus) ([]tier1.RowIdentification, []tier1.ColumnID, error) {
-	var test crtype.TestWithVariantsKey
+	var test test.KeyWithVariants
 	columnGroupByVariants := c.ReqOptions.VariantOption.ColumnGroupBy
 	// We show column groups by DBGroupBy only for the last page before test details
 	if len(c.ReqOptions.TestIDOptions) > 0 && c.ReqOptions.TestIDOptions[0].TestID != "" {
@@ -780,17 +781,17 @@ func initTestAnalysisStruct(
 	testStats.RequiredConfidence = reqOptions.AdvancedOption.Confidence
 
 	testStats.SampleStats = crtype.TestDetailsReleaseStats{
-		Release:              reqOptions.SampleRelease.Release,
-		Start:                &reqOptions.SampleRelease.Start,
-		End:                  &reqOptions.SampleRelease.End,
-		TestDetailsTestStats: sampleStatus.ToTestStats(reqOptions.AdvancedOption.FlakeAsFailure),
+		Release: reqOptions.SampleRelease.Release,
+		Start:   &reqOptions.SampleRelease.Start,
+		End:     &reqOptions.SampleRelease.End,
+		Stats:   sampleStatus.ToTestStats(reqOptions.AdvancedOption.FlakeAsFailure),
 	}
 	if baseStatus != nil {
 		testStats.BaseStats = &crtype.TestDetailsReleaseStats{
-			Release:              reqOptions.BaseRelease.Release,
-			Start:                &reqOptions.BaseRelease.Start,
-			End:                  &reqOptions.BaseRelease.End,
-			TestDetailsTestStats: baseStatus.ToTestStats(reqOptions.AdvancedOption.FlakeAsFailure),
+			Release: reqOptions.BaseRelease.Release,
+			Start:   &reqOptions.BaseRelease.Start,
+			End:     &reqOptions.BaseRelease.End,
+			Stats:   baseStatus.ToTestStats(reqOptions.AdvancedOption.FlakeAsFailure),
 		}
 	}
 }

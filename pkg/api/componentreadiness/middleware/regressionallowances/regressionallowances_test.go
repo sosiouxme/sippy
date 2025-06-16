@@ -7,6 +7,7 @@ import (
 
 	crtype "github.com/openshift/sippy/pkg/apis/api/componentreport"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/requestoptions"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/test"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
 	"github.com/openshift/sippy/pkg/regressionallowances"
 	"github.com/stretchr/testify/assert"
@@ -165,11 +166,11 @@ func buildTestStatus(total, success, flake int, baseRelease string) *crtype.Repo
 	ts := &crtype.ReportTestStats{
 		BaseStats: &crtype.TestDetailsReleaseStats{
 			Release: baseRelease,
-			TestDetailsTestStats: crtype.TestDetailsTestStats{
+			Stats: test.Stats{
 				FailureCount: fails,
 				SuccessCount: success,
 				FlakeCount:   flake,
-				SuccessRate:  crtype.CalculatePassRate(success, fails, flake, false),
+				SuccessRate:  test.CalculatePassRate(success, fails, flake, false),
 			},
 		},
 	}
@@ -185,11 +186,11 @@ func buildTestStatus2(total, success, flake int, baseRelease, sampleRelease stri
 	success -= regressed
 	ts.SampleStats = crtype.TestDetailsReleaseStats{
 		Release: sampleRelease,
-		TestDetailsTestStats: crtype.TestDetailsTestStats{
+		Stats: test.Stats{
 			FailureCount: fails,
 			SuccessCount: success,
 			FlakeCount:   flake,
-			SuccessRate:  crtype.CalculatePassRate(success, fails, flake, false),
+			SuccessRate:  test.CalculatePassRate(success, fails, flake, false),
 		},
 	}
 	ts.PityAdjustment = pityAdjust

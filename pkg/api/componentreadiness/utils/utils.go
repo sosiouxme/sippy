@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/openshift/sippy/pkg/apis/api/componentreport"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/bq"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/requestoptions"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/test"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
 	"github.com/sirupsen/logrus"
 )
@@ -87,7 +87,7 @@ func NormalizeProwJobName(prowName string, reqOptions requestoptions.RequestOpti
 // we instead serialize a very small struct to json for a unit test key that includes test
 // ID and a specific set of variants. This function deserializes back to a struct.
 func DeserializeTestKey(stats bq.TestStatus, testKeyStr string) (tier1.ReportTestIdentification, error) {
-	var testKey componentreport.TestWithVariantsKey
+	var testKey test.KeyWithVariants
 	err := json.Unmarshal([]byte(testKeyStr), &testKey)
 	if err != nil {
 		logrus.WithError(err).Errorf("trying to unmarshel %s", testKeyStr)

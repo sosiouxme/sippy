@@ -11,6 +11,7 @@ import (
 	crtype "github.com/openshift/sippy/pkg/apis/api/componentreport"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/bq"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/requestoptions"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/test"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
 	"github.com/openshift/sippy/pkg/db"
 	"github.com/openshift/sippy/pkg/db/models"
@@ -198,6 +199,6 @@ func findVariant(variantName string, testReg *models.TestRegression) string {
 	return ""
 }
 
-func (r *RegressionTracker) PreTestDetailsAnalysis(testKey crtype.TestWithVariantsKey, status *crtype.TestJobRunStatuses) error {
+func (r *RegressionTracker) PreTestDetailsAnalysis(testKey test.KeyWithVariants, status *crtype.TestJobRunStatuses) error {
 	return nil
 }

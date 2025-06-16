@@ -13,6 +13,7 @@ import (
 	"github.com/openshift/sippy/pkg/api/componentreadiness/utils"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/bq"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/requestoptions"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/test"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
 	log "github.com/sirupsen/logrus"
 
@@ -102,7 +103,7 @@ func (r *ReleaseFallback) PreAnalysis(testKey tier1.ReportTestIdentification, te
 	if testStats.BaseStats == nil {
 		return nil
 	}
-	testIDVariantsKey := crtype.TestWithVariantsKey{
+	testIDVariantsKey := test.KeyWithVariants{
 		TestID:   testKey.TestID,
 		Variants: testKey.Variants,
 	}
@@ -157,10 +158,10 @@ func (r *ReleaseFallback) PreAnalysis(testKey tier1.ReportTestIdentification, te
 				// We've found a better pass rate in a prior release with enough runs to qualify.
 				// Adjust the stats and keep looking for an even better one.
 				testStats.BaseStats = &crtype.TestDetailsReleaseStats{
-					Release:              priorRelease,
-					Start:                cachedReleaseTestStatuses.Start,
-					End:                  cachedReleaseTestStatuses.End,
-					TestDetailsTestStats: cTestStats,
+					Release: priorRelease,
+					Start:   cachedReleaseTestStatuses.Start,
+					End:     cachedReleaseTestStatuses.End,
+					Stats:   cTestStats,
 				}
 				swappedExplanation = fmt.Sprintf("Overrode base stats (%.4f) using release %s (%.4f)",
 					basePassRate, testStats.BaseStats.Release, cTestStats.SuccessRate)
@@ -302,7 +303,7 @@ func (r *ReleaseFallback) QueryTestDetails(ctx context.Context, wg *sync.WaitGro
 
 }
 
-func (r *ReleaseFallback) PreTestDetailsAnalysis(testKey crtype.TestWithVariantsKey, status *crtype.TestJobRunStatuses) error {
+func (r *ReleaseFallback) PreTestDetailsAnalysis(testKey test.KeyWithVariants, status *crtype.TestJobRunStatuses) error {
 	// Add our baseOverrideStatus to the report, unfortunate hack we have to live with for now.
 	testKeyStr := testKey.KeyOrDie()
 	if _, ok := r.baseOverrideStatus[testKeyStr]; ok {

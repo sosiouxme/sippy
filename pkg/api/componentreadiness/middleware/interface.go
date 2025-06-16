@@ -6,6 +6,7 @@ import (
 
 	crtype "github.com/openshift/sippy/pkg/apis/api/componentreport"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/bq"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/test"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
 )
 
@@ -36,5 +37,5 @@ type Middleware interface {
 
 	// PreTestDetailsAnalysis gives middleware the opportunity to adjust inputs to the report status
 	// prior to analysis.
-	PreTestDetailsAnalysis(testKey crtype.TestWithVariantsKey, status *crtype.TestJobRunStatuses) error
+	PreTestDetailsAnalysis(testKey test.KeyWithVariants, status *crtype.TestJobRunStatuses) error
 }

@@ -6,33 +6,8 @@ import (
 
 	"cloud.google.com/go/bigquery"
 	"cloud.google.com/go/civil"
-	"github.com/openshift/sippy/pkg/apis/api/componentreport"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/test"
 )
-
-// TestCount is a struct representing the counts of test results in BigQuery-land.
-type TestCount struct {
-	TotalCount   int `json:"total_count" bigquery:"total_count"`
-	SuccessCount int `json:"success_count" bigquery:"success_count"`
-	FlakeCount   int `json:"flake_count" bigquery:"flake_count"`
-}
-
-//nolint:revive
-func (tc TestCount) Add(add TestCount) TestCount {
-	tc.TotalCount += add.TotalCount
-	tc.SuccessCount += add.SuccessCount
-	tc.FlakeCount += add.FlakeCount
-	return tc
-}
-func (tc TestCount) Failures() int { // translate to sippy/stats-land
-	failure := tc.TotalCount - tc.SuccessCount - tc.FlakeCount
-	if failure < 0 { // this shouldn't happen but just as a failsafe...
-		failure = 0
-	}
-	return failure
-}
-func (tc TestCount) ToTestStats(flakeAsFailure bool) componentreport.TestDetailsTestStats { // translate to sippy/stats-land
-	return componentreport.NewTestStats(tc.SuccessCount, tc.Failures(), tc.FlakeCount, flakeAsFailure)
-}
 
 // TestStatus is an internal type used to pass data bigquery onwards to the actual
 // report generation. It is not serialized over the API.
@@ -42,18 +17,18 @@ type TestStatus struct {
 	Component    string   `json:"component"`
 	Capabilities []string `json:"capabilities"`
 	Variants     []string `json:"variants"`
-	TestCount
+	test.Count
 	LastFailure time.Time `json:"last_failure"`
 }
 
-// ReportTestStatus contains the mapping of all test keys (serialized with TestWithVariantsKey, variants + testID)
+// ReportTestStatus contains the mapping of all test keys (serialized with KeyWithVariants, variants + testID)
 // It is also an internal type used to pass data from bigquery onwards to report generation, and does not get serialized
 // as an API response.
 type ReportTestStatus struct {
-	// BaseStatus represents the stable basis for the comparison. Maps TestWithVariantsKey serialized as a string, to test status.
+	// BaseStatus represents the stable basis for the comparison. Maps KeyWithVariants serialized as a string, to test status.
 	BaseStatus map[string]TestStatus `json:"base_status"`
 
-	// SampleSatus represents the sample for the comparison. Maps TestWithVariantsKey serialized as a string, to test status.
+	// SampleSatus represents the sample for the comparison. Maps KeyWithVariants serialized as a string, to test status.
 	SampleStatus map[string]TestStatus `json:"sample_status"`
 	GeneratedAt  *time.Time            `json:"generated_at"`
 }
@@ -88,14 +63,14 @@ type JobVariant struct {
 // indicating if the test passed or failed.
 // Fields are named count somewhat misleadingly as technically they're always 0 or 1 today.
 type TestJobRunRows struct {
-	TestKey      componentreport.TestWithVariantsKey `json:"test_key"`
-	TestKeyStr   string                              `json:"-"` // transient field so we dont have to keep recalculating
-	TestName     string                              `bigquery:"test_name"`
-	ProwJob      string                              `bigquery:"prowjob_name"`
-	ProwJobRunID string                              `bigquery:"prowjob_run_id"`
-	ProwJobURL   string                              `bigquery:"prowjob_url"`
-	StartTime    civil.DateTime                      `bigquery:"prowjob_start"`
-	TestCount
+	TestKey      test.KeyWithVariants `json:"test_key"`
+	TestKeyStr   string               `json:"-"` // transient field so we dont have to keep recalculating
+	TestName     string               `bigquery:"test_name"`
+	ProwJob      string               `bigquery:"prowjob_name"`
+	ProwJobRunID string               `bigquery:"prowjob_run_id"`
+	ProwJobURL   string               `bigquery:"prowjob_url"`
+	StartTime    civil.DateTime       `bigquery:"prowjob_start"`
+	test.Count
 	JiraComponent   string   `bigquery:"jira_component"`
 	JiraComponentID *big.Rat `bigquery:"jira_component_id"`
 }

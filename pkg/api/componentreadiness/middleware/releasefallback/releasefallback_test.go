@@ -8,6 +8,7 @@ import (
 	crtype "github.com/openshift/sippy/pkg/apis/api/componentreport"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/bq"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/requestoptions"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/test"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
 	"github.com/stretchr/testify/assert"
 )
@@ -25,7 +26,7 @@ func Test_PreAnalysis(t *testing.T) {
 		"Platform": "aws",
 	}
 	test1VariantsFlattened := []string{"Arch:amd64", "Platform:aws"}
-	test1MapKey := crtype.TestWithVariantsKey{
+	test1MapKey := test.KeyWithVariants{
 		TestID:   test1ID,
 		Variants: test1Variants,
 	}
@@ -217,7 +218,7 @@ func buildTestStatus(testName string, variants []string, total, success, flake i
 		Component:    "foo",
 		Capabilities: nil,
 		Variants:     variants,
-		TestCount: bq.TestCount{
+		Count: test.Count{
 			TotalCount:   total,
 			SuccessCount: success,
 			FlakeCount:   flake,
@@ -232,11 +233,11 @@ func buildTestStats(total, success int, baseRelease tier1.Release, explanations 
 			Release: baseRelease.Release,
 			Start:   baseRelease.Start,
 			End:     baseRelease.End,
-			TestDetailsTestStats: crtype.TestDetailsTestStats{
+			Stats: test.Stats{
 				FailureCount: fails,
 				SuccessCount: success,
 				FlakeCount:   0,
-				SuccessRate:  crtype.CalculatePassRate(success, fails, 0, false),
+				SuccessRate:  test.CalculatePassRate(success, fails, 0, false),
 			},
 		},
 	}

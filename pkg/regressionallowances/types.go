@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/url"
 
-	crtype "github.com/openshift/sippy/pkg/apis/api/componentreport"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/test"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
 	"github.com/openshift/sippy/pkg/componentreadiness/resolvedissues"
 
@@ -52,11 +52,11 @@ func IntentionalRegressionFor(releaseString string, variant tier1.ColumnIdentifi
 }
 
 func (i *IntentionalRegression) RegressedPassPercentage(flakeAsFailure bool) float64 {
-	return crtype.CalculatePassRate(i.RegressedSuccesses, i.RegressedFailures, i.RegressedFlakes, flakeAsFailure)
+	return test.CalculatePassRate(i.RegressedSuccesses, i.RegressedFailures, i.RegressedFlakes, flakeAsFailure)
 }
 
 func (i *IntentionalRegression) PreviousPassPercentage(flakeAsFailure bool) float64 {
-	return crtype.CalculatePassRate(i.PreviousSuccesses, i.PreviousFailures, i.PreviousFlakes, flakeAsFailure)
+	return test.CalculatePassRate(i.PreviousSuccesses, i.PreviousFailures, i.PreviousFlakes, flakeAsFailure)
 }
 
 func keyFor(testID string, variant tier1.ColumnIdentification) string {

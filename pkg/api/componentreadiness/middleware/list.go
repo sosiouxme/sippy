@@ -6,6 +6,7 @@ import (
 
 	crtype "github.com/openshift/sippy/pkg/apis/api/componentreport"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/bq"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/test"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
 )
 
@@ -43,7 +44,7 @@ func (l List) PostAnalysis(testKey tier1.ReportTestIdentification, testStats *cr
 	return nil
 }
 
-func (l List) PreTestDetailsAnalysis(testKey crtype.TestWithVariantsKey, status *crtype.TestJobRunStatuses) error {
+func (l List) PreTestDetailsAnalysis(testKey test.KeyWithVariants, status *crtype.TestJobRunStatuses) error {
 	for _, mw := range l {
 		if err := mw.PreTestDetailsAnalysis(testKey, status); err != nil {
 			return err
