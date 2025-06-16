@@ -76,13 +76,6 @@ type ReportTestStats struct {
 	Regression *models.TestRegression `json:"regression,omitempty"`
 }
 
-// TestDetailsAnalysis is a collection of stats for the report which could potentially carry
-// multiple different analyses run.
-type TestDetailsAnalysis struct {
-	ReportTestStats
-	JobStats []TestDetailsJobStats `json:"job_stats,omitempty"`
-}
-
 // ReportTestDetails is the top level API response for test details reports.
 type ReportTestDetails struct {
 	crtier1.ReportTestIdentification
@@ -96,6 +89,13 @@ type ReportTestDetails struct {
 	// be displayed by default, but each analysis offers details and explanations on it's outcome
 	// and can be used in some capacity.
 	Analyses []TestDetailsAnalysis `json:"analyses"`
+}
+
+// TestDetailsAnalysis is a collection of stats for the report which could potentially carry
+// multiple different analyses run.
+type TestDetailsAnalysis struct {
+	ReportTestStats
+	JobStats []TestDetailsJobStats `json:"job_stats,omitempty"`
 }
 
 type TestDetailsReleaseStats struct {
@@ -207,8 +207,6 @@ type TestJobRunStatuses struct {
 	SampleStatus       map[string][]bq.TestJobRunRows `json:"sample_status"`
 	GeneratedAt        *time.Time                     `json:"generated_at"`
 }
-
-type ReportResponse []ReportRow
 
 type TestVariants struct {
 	Network  []string `json:"network,omitempty"`
