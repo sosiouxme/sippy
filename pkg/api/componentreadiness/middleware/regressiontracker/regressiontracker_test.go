@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/openshift/sippy/pkg/api/componentreadiness/utils"
-	crtype "github.com/openshift/sippy/pkg/apis/api/componentreport"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/requestoptions"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/testdetails"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
 	"github.com/openshift/sippy/pkg/db/models"
 	"github.com/sirupsen/logrus"
@@ -56,14 +56,14 @@ func TestRegressionTracker_PostAnalysis(t *testing.T) {
 	daysAgo2 := time.Now().UTC().Add(-2 * 24 * time.Hour)
 	tests := []struct {
 		name                      string
-		testStats                 crtype.ReportTestStats
+		testStats                 testdetails.ReportTestStats
 		openRegression            models.TestRegression
 		expectStatus              tier1.Status
 		expectedExplanationsCount int
 	}{
 		{
 			name: "triaged regression",
-			testStats: crtype.ReportTestStats{
+			testStats: testdetails.ReportTestStats{
 				ReportStatus: tier1.ExtremeRegression,
 				Explanations: []string{},
 				LastFailure:  &daysAgo4,
@@ -97,7 +97,7 @@ func TestRegressionTracker_PostAnalysis(t *testing.T) {
 		},
 		{
 			name: "triage resolved waiting to clear",
-			testStats: crtype.ReportTestStats{
+			testStats: testdetails.ReportTestStats{
 				ReportStatus: tier1.ExtremeRegression,
 				Explanations: []string{},
 				LastFailure:  &daysAgo4,
@@ -134,7 +134,7 @@ func TestRegressionTracker_PostAnalysis(t *testing.T) {
 		},
 		{
 			name: "triage resolved but has failed since",
-			testStats: crtype.ReportTestStats{
+			testStats: testdetails.ReportTestStats{
 				ReportStatus: tier1.ExtremeRegression,
 				Explanations: []string{},
 				LastFailure:  &daysAgo2,
@@ -171,7 +171,7 @@ func TestRegressionTracker_PostAnalysis(t *testing.T) {
 		},
 		{
 			name: "triage resolved and has cleared entirely",
-			testStats: crtype.ReportTestStats{
+			testStats: testdetails.ReportTestStats{
 				ReportStatus: tier1.SignificantImprovement,
 				Explanations: []string{},
 				LastFailure:  nil,
@@ -208,7 +208,7 @@ func TestRegressionTracker_PostAnalysis(t *testing.T) {
 		},
 		{
 			name: "triage resolved no longer significant but failures since resolution time",
-			testStats: crtype.ReportTestStats{
+			testStats: testdetails.ReportTestStats{
 				ReportStatus: tier1.NotSignificant,
 				Explanations: []string{},
 				LastFailure:  &daysAgo2,

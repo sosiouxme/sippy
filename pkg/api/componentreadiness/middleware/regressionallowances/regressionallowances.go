@@ -10,6 +10,7 @@ import (
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/bq"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/requestoptions"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/test"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/testdetails"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
 	"github.com/openshift/sippy/pkg/regressionallowances"
 	log "github.com/sirupsen/logrus"
@@ -47,7 +48,7 @@ func (r *RegressionAllowances) Query(_ context.Context, _ *sync.WaitGroup, _ crt
 // PreAnalysis iterates the base status looking for any with an accepted regression in the basis release, and if found
 // swaps out the stats with the better pass rate data specified in the intentional regression allowance.
 // It also iterates the sample looking for intentional regressions and adjusts the analysis parameters accordingly.
-func (r *RegressionAllowances) PreAnalysis(testKey tier1.ReportTestIdentification, testStats *crtype.ReportTestStats) error {
+func (r *RegressionAllowances) PreAnalysis(testKey tier1.ReportTestIdentification, testStats *testdetails.ReportTestStats) error {
 
 	// for intentional regression in the base
 	r.matchBaseRegression(testKey, r.reqOptions.BaseRelease.Release, testStats)
@@ -60,7 +61,7 @@ func (r *RegressionAllowances) PreAnalysis(testKey tier1.ReportTestIdentificatio
 	return nil
 }
 
-func (r *RegressionAllowances) PostAnalysis(testKey tier1.ReportTestIdentification, testStats *crtype.ReportTestStats) error {
+func (r *RegressionAllowances) PostAnalysis(testKey tier1.ReportTestIdentification, testStats *testdetails.ReportTestStats) error {
 	return nil
 }
 
@@ -68,7 +69,7 @@ func (r *RegressionAllowances) PostAnalysis(testKey tier1.ReportTestIdentificati
 // in an intentional regression that accepted a lower threshold but maintains the higher
 // threshold when used as a basis.
 // It will return the original testStatus if there is no intentional regression.
-func (r *RegressionAllowances) matchBaseRegression(testID tier1.ReportTestIdentification, baseRelease string, testStats *crtype.ReportTestStats) {
+func (r *RegressionAllowances) matchBaseRegression(testID tier1.ReportTestIdentification, baseRelease string, testStats *testdetails.ReportTestStats) {
 	opts := r.reqOptions.AdvancedOption
 	// Nothing to do for tests with no basis. (i.e. new tests)
 	if testStats.BaseStats == nil {
@@ -109,7 +110,7 @@ func (r *RegressionAllowances) matchBaseRegression(testID tier1.ReportTestIdenti
 	}
 }
 
-func (r *RegressionAllowances) adjustAnalysisParameters(testStats *crtype.ReportTestStats, ir *regressionallowances.IntentionalRegression) {
+func (r *RegressionAllowances) adjustAnalysisParameters(testStats *testdetails.ReportTestStats, ir *regressionallowances.IntentionalRegression) {
 	// nothing to do for cross variant compares
 	if len(r.reqOptions.VariantOption.VariantCrossCompare) != 0 {
 		return

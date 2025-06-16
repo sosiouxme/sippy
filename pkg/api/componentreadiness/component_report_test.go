@@ -13,6 +13,7 @@ import (
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/bq"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/requestoptions"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/test"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/testdetails"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
 	"github.com/stretchr/testify/assert"
 
@@ -527,7 +528,7 @@ func TestGenerateComponentReport(t *testing.T) {
 												Variants: awsAMD64OVNTest.Variants,
 											},
 										},
-										ReportTestStats: crtype.ReportTestStats{
+										ReportTestStats: testdetails.ReportTestStats{
 											RequiredConfidence: 95,
 											Comparison:         tier1.FisherExact,
 											Explanations: []string{
@@ -537,7 +538,7 @@ func TestGenerateComponentReport(t *testing.T) {
 											},
 											ReportStatus: tier1.ExtremeRegression,
 											FisherExact:  thrift.Float64Ptr(1.8251046156331867e-21),
-											SampleStats: crtype.TestDetailsReleaseStats{
+											SampleStats: testdetails.ReleaseStats{
 												Stats: test.Stats{
 													SuccessRate:  0.51,
 													SuccessCount: 50,
@@ -547,7 +548,7 @@ func TestGenerateComponentReport(t *testing.T) {
 												Start: &time.Time{},
 												End:   &time.Time{},
 											},
-											BaseStats: &crtype.TestDetailsReleaseStats{
+											BaseStats: &testdetails.ReleaseStats{
 												Stats: test.Stats{
 													SuccessRate:  0.91,
 													SuccessCount: 900,
@@ -569,7 +570,7 @@ func TestGenerateComponentReport(t *testing.T) {
 												Variants: awsAMD64OVN2Test.Variants,
 											},
 										},
-										ReportTestStats: crtype.ReportTestStats{
+										ReportTestStats: testdetails.ReportTestStats{
 											RequiredConfidence: 95,
 											Comparison:         tier1.FisherExact,
 											Explanations: []string{
@@ -579,7 +580,7 @@ func TestGenerateComponentReport(t *testing.T) {
 											},
 											ReportStatus: tier1.SignificantRegression,
 											FisherExact:  thrift.Float64Ptr(0.002621948654892275),
-											SampleStats: crtype.TestDetailsReleaseStats{
+											SampleStats: testdetails.ReleaseStats{
 												Stats: test.Stats{
 													SuccessRate:  0.81,
 													SuccessCount: 80,
@@ -589,7 +590,7 @@ func TestGenerateComponentReport(t *testing.T) {
 												Start: &time.Time{},
 												End:   &time.Time{},
 											},
-											BaseStats: &crtype.TestDetailsReleaseStats{
+											BaseStats: &testdetails.ReleaseStats{
 												Stats: test.Stats{
 													SuccessRate:  0.91,
 													SuccessCount: 900,
@@ -866,7 +867,7 @@ func TestGenerateComponentReport(t *testing.T) {
 												Variants: awsAMD64OVNTest.Variants,
 											},
 										},
-										ReportTestStats: crtype.ReportTestStats{
+										ReportTestStats: testdetails.ReportTestStats{
 											RequiredConfidence: 90,
 											Comparison:         tier1.FisherExact,
 											Explanations: []string{
@@ -876,7 +877,7 @@ func TestGenerateComponentReport(t *testing.T) {
 											},
 											ReportStatus: tier1.SignificantRegression,
 											FisherExact:  thrift.Float64Ptr(0.07837082801914011),
-											SampleStats: crtype.TestDetailsReleaseStats{
+											SampleStats: testdetails.ReleaseStats{
 												Stats: test.Stats{
 													SuccessRate:  0.86,
 													SuccessCount: 85,
@@ -886,7 +887,7 @@ func TestGenerateComponentReport(t *testing.T) {
 												Start: &time.Time{},
 												End:   &time.Time{},
 											},
-											BaseStats: &crtype.TestDetailsReleaseStats{
+											BaseStats: &testdetails.ReleaseStats{
 												Stats: test.Stats{
 													SuccessRate:  0.91,
 													SuccessCount: 900,
@@ -1095,7 +1096,7 @@ func TestGenerateComponentReport(t *testing.T) {
 												Variants: awsAMD64OVNTest.Variants,
 											},
 										},
-										ReportTestStats: crtype.ReportTestStats{
+										ReportTestStats: testdetails.ReportTestStats{
 											RequiredConfidence: 95,
 											Comparison:         tier1.FisherExact,
 											Explanations: []string{
@@ -1105,7 +1106,7 @@ func TestGenerateComponentReport(t *testing.T) {
 											},
 											ReportStatus: tier1.ExtremeRegression,
 											FisherExact:  thrift.Float64Ptr(1.0800451094957381e-20),
-											SampleStats: crtype.TestDetailsReleaseStats{
+											SampleStats: testdetails.ReleaseStats{
 												Stats: test.Stats{
 													SuccessRate:  0.5,
 													SuccessCount: 50,
@@ -1115,7 +1116,7 @@ func TestGenerateComponentReport(t *testing.T) {
 												Start: &time.Time{},
 												End:   &time.Time{},
 											},
-											BaseStats: &crtype.TestDetailsReleaseStats{
+											BaseStats: &testdetails.ReleaseStats{
 												Stats: test.Stats{
 													SuccessRate:  0.9,
 													SuccessCount: 900,
@@ -1137,7 +1138,7 @@ func TestGenerateComponentReport(t *testing.T) {
 												Variants: awsAMD64OVN2Test.Variants,
 											},
 										},
-										ReportTestStats: crtype.ReportTestStats{
+										ReportTestStats: testdetails.ReportTestStats{
 											RequiredConfidence: 95,
 											Comparison:         tier1.FisherExact,
 											Explanations: []string{
@@ -1147,7 +1148,7 @@ func TestGenerateComponentReport(t *testing.T) {
 											},
 											ReportStatus: tier1.SignificantRegression,
 											FisherExact:  thrift.Float64Ptr(0.0035097810890055117),
-											SampleStats: crtype.TestDetailsReleaseStats{
+											SampleStats: testdetails.ReleaseStats{
 												Stats: test.Stats{
 													SuccessRate:  0.8,
 													SuccessCount: 80,
@@ -1157,7 +1158,7 @@ func TestGenerateComponentReport(t *testing.T) {
 												Start: &time.Time{},
 												End:   &time.Time{},
 											},
-											BaseStats: &crtype.TestDetailsReleaseStats{
+											BaseStats: &testdetails.ReleaseStats{
 												Stats: test.Stats{
 													SuccessRate:  0.9,
 													SuccessCount: 900,
@@ -1265,7 +1266,7 @@ func TestGenerateComponentTestDetailsReport(t *testing.T) {
 	testDetailsColumnIdentification := tier1.ColumnIdentification{
 		Variants: testDetailsGenerator.ReqOptions.TestIDOptions[0].RequestedVariants,
 	}
-	sampleReleaseStatsTwoHigh := crtype.TestDetailsReleaseStats{
+	sampleReleaseStatsTwoHigh := testdetails.ReleaseStats{
 		Release: testDetailsGenerator.ReqOptions.SampleRelease.Release,
 		Stats: test.Stats{
 			SuccessRate:  0.9203539823008849,
@@ -1276,7 +1277,7 @@ func TestGenerateComponentTestDetailsReport(t *testing.T) {
 		Start: &time.Time{},
 		End:   &time.Time{},
 	}
-	baseReleaseStatsTwoHigh := crtype.TestDetailsReleaseStats{
+	baseReleaseStatsTwoHigh := testdetails.ReleaseStats{
 		Release: testDetailsGenerator.ReqOptions.BaseRelease.Release,
 		Stats: test.Stats{
 			SuccessRate:  0.9130434782608695,
@@ -1309,7 +1310,7 @@ func TestGenerateComponentTestDetailsReport(t *testing.T) {
 		FailureCount: 600,
 		FlakeCount:   50,
 	}
-	sampleReleaseStatsOneHigh := crtype.TestDetailsReleaseStats{
+	sampleReleaseStatsOneHigh := testdetails.ReleaseStats{
 		Release: testDetailsGenerator.ReqOptions.SampleRelease.Release,
 		Stats: test.Stats{
 			SuccessRate:  0.9203539823008849,
@@ -1320,7 +1321,7 @@ func TestGenerateComponentTestDetailsReport(t *testing.T) {
 		Start: &time.Time{},
 		End:   &time.Time{},
 	}
-	baseReleaseStatsOneHigh := crtype.TestDetailsReleaseStats{
+	baseReleaseStatsOneHigh := testdetails.ReleaseStats{
 		Release: testDetailsGenerator.ReqOptions.BaseRelease.Release,
 		Stats: test.Stats{
 			SuccessRate:  0.9130434782608695,
@@ -1329,7 +1330,7 @@ func TestGenerateComponentTestDetailsReport(t *testing.T) {
 			FlakeCount:   50,
 		},
 	}
-	sampleReleaseStatsOneLow := crtype.TestDetailsReleaseStats{
+	sampleReleaseStatsOneLow := testdetails.ReleaseStats{
 		Release: testDetailsGenerator.ReqOptions.SampleRelease.Release,
 		Stats: test.Stats{
 			SuccessRate:  0.4778761061946903,
@@ -1340,7 +1341,7 @@ func TestGenerateComponentTestDetailsReport(t *testing.T) {
 		Start: &time.Time{},
 		End:   &time.Time{},
 	}
-	baseReleaseStatsOneLow := crtype.TestDetailsReleaseStats{
+	baseReleaseStatsOneLow := testdetails.ReleaseStats{
 		Release: testDetailsGenerator.ReqOptions.BaseRelease.Release,
 		Stats: test.Stats{
 			SuccessRate:  0.4782608695652174,
@@ -1354,7 +1355,7 @@ func TestGenerateComponentTestDetailsReport(t *testing.T) {
 		generator               ComponentReportGenerator
 		baseRequiredJobStats    []requiredJobStats
 		sampleRequiredJobStats  []requiredJobStats
-		expectedReport          crtype.ReportTestDetails
+		expectedReport          testdetails.Report
 		expectedSampleJobRunLen map[string]int
 		expectedBaseJobRunLen   map[string]int
 	}{
@@ -1373,21 +1374,21 @@ func TestGenerateComponentTestDetailsReport(t *testing.T) {
 					testStats: sampleHighSuccessStats,
 				},
 			},
-			expectedReport: crtype.ReportTestDetails{
+			expectedReport: testdetails.Report{
 				ReportTestIdentification: tier1.ReportTestIdentification{
 					RowIdentification:    testDetailsRowIdentification,
 					ColumnIdentification: testDetailsColumnIdentification,
 				},
-				Analyses: []crtype.TestDetailsAnalysis{
+				Analyses: []testdetails.Analysis{
 					{
-						ReportTestStats: crtype.ReportTestStats{
+						ReportTestStats: testdetails.ReportTestStats{
 							Comparison:   tier1.FisherExact,
 							SampleStats:  sampleReleaseStatsOneHigh,
 							BaseStats:    &baseReleaseStatsOneHigh,
 							FisherExact:  thrift.Float64Ptr(.4807457902463764),
 							ReportStatus: tier1.NotSignificant,
 						},
-						JobStats: []crtype.TestDetailsJobStats{
+						JobStats: []testdetails.JobStats{
 							{
 								SampleJobName: prowJob1,
 								SampleStats:   sampleTestStatsHigh,
@@ -1420,21 +1421,21 @@ func TestGenerateComponentTestDetailsReport(t *testing.T) {
 					testStats: sampleLowSuccessStats,
 				},
 			},
-			expectedReport: crtype.ReportTestDetails{
+			expectedReport: testdetails.Report{
 				ReportTestIdentification: tier1.ReportTestIdentification{
 					RowIdentification:    testDetailsRowIdentification,
 					ColumnIdentification: testDetailsColumnIdentification,
 				},
-				Analyses: []crtype.TestDetailsAnalysis{
+				Analyses: []testdetails.Analysis{
 					{
-						ReportTestStats: crtype.ReportTestStats{
+						ReportTestStats: testdetails.ReportTestStats{
 							Comparison:   tier1.FisherExact,
 							SampleStats:  sampleReleaseStatsOneLow,
 							BaseStats:    &baseReleaseStatsOneHigh,
 							FisherExact:  thrift.Float64Ptr(8.209711662216515e-28),
 							ReportStatus: tier1.ExtremeRegression,
 						},
-						JobStats: []crtype.TestDetailsJobStats{
+						JobStats: []testdetails.JobStats{
 							{
 								SampleJobName: prowJob1,
 								BaseJobName:   prowJob2,
@@ -1468,21 +1469,21 @@ func TestGenerateComponentTestDetailsReport(t *testing.T) {
 					testStats: sampleHighSuccessStats,
 				},
 			},
-			expectedReport: crtype.ReportTestDetails{
+			expectedReport: testdetails.Report{
 				ReportTestIdentification: tier1.ReportTestIdentification{
 					RowIdentification:    testDetailsRowIdentification,
 					ColumnIdentification: testDetailsColumnIdentification,
 				},
-				Analyses: []crtype.TestDetailsAnalysis{
+				Analyses: []testdetails.Analysis{
 					{
-						ReportTestStats: crtype.ReportTestStats{
+						ReportTestStats: testdetails.ReportTestStats{
 							Comparison:   tier1.FisherExact,
 							SampleStats:  sampleReleaseStatsOneHigh,
 							BaseStats:    &baseReleaseStatsOneLow,
 							FisherExact:  thrift.Float64Ptr(4.911246201592593e-22),
 							ReportStatus: tier1.SignificantImprovement,
 						},
-						JobStats: []crtype.TestDetailsJobStats{
+						JobStats: []testdetails.JobStats{
 							{
 								SampleJobName: prowJob1,
 								BaseJobName:   prowJob2,
@@ -1524,21 +1525,21 @@ func TestGenerateComponentTestDetailsReport(t *testing.T) {
 					testStats: sampleHighSuccessStats,
 				},
 			},
-			expectedReport: crtype.ReportTestDetails{
+			expectedReport: testdetails.Report{
 				ReportTestIdentification: tier1.ReportTestIdentification{
 					RowIdentification:    testDetailsRowIdentification,
 					ColumnIdentification: testDetailsColumnIdentification,
 				},
-				Analyses: []crtype.TestDetailsAnalysis{
+				Analyses: []testdetails.Analysis{
 					{
-						ReportTestStats: crtype.ReportTestStats{
+						ReportTestStats: testdetails.ReportTestStats{
 							Comparison:   tier1.FisherExact,
 							SampleStats:  sampleReleaseStatsTwoHigh,
 							BaseStats:    &baseReleaseStatsTwoHigh,
 							FisherExact:  thrift.Float64Ptr(0.4119831376606586),
 							ReportStatus: tier1.NotSignificant,
 						},
-						JobStats: []crtype.TestDetailsJobStats{
+						JobStats: []testdetails.JobStats{
 							{
 								SampleJobName: prowJob1,
 								SampleStats:   sampleTestStatsHigh,
@@ -1831,15 +1832,15 @@ func Test_componentReportGenerator_assessComponentStatus(t *testing.T) {
 			c.ReqOptions.AdvancedOption.PassRateRequiredAllTests = tt.requiredPassRateForAllTests
 			c.ReqOptions.AdvancedOption.MinimumFailure = tt.minFail
 
-			testAnalysis := &crtype.ReportTestStats{
-				SampleStats: crtype.TestDetailsReleaseStats{
+			testAnalysis := &testdetails.ReportTestStats{
+				SampleStats: testdetails.ReleaseStats{
 					Stats: test.Stats{
 						SuccessCount: tt.sampleSuccess,
 						FlakeCount:   tt.sampleFlake,
 						FailureCount: tt.sampleTotal - tt.sampleSuccess - tt.sampleFlake,
 					},
 				},
-				BaseStats: &crtype.TestDetailsReleaseStats{
+				BaseStats: &testdetails.ReleaseStats{
 					Stats: test.Stats{
 						SuccessCount: tt.baseSuccess,
 						FlakeCount:   tt.baseFlake,

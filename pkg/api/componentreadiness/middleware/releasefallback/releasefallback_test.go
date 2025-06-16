@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	crtype "github.com/openshift/sippy/pkg/apis/api/componentreport"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/bq"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/requestoptions"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/test"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/testdetails"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
 	"github.com/stretchr/testify/assert"
 )
@@ -88,8 +88,8 @@ func Test_PreAnalysis(t *testing.T) {
 		reqOpts          requestoptions.RequestOptions
 		testKey          tier1.ReportTestIdentification
 		fallbackReleases FallbackReleases
-		testStats        *crtype.ReportTestStats
-		expectedStatus   *crtype.ReportTestStats
+		testStats        *testdetails.ReportTestStats
+		expectedStatus   *testdetails.ReportTestStats
 	}{
 		{
 			name:    "fallback to prior release",
@@ -226,10 +226,10 @@ func buildTestStatus(testName string, variants []string, total, success, flake i
 	}
 }
 
-func buildTestStats(total, success int, baseRelease tier1.Release, explanations []string) *crtype.ReportTestStats {
+func buildTestStats(total, success int, baseRelease tier1.Release, explanations []string) *testdetails.ReportTestStats {
 	fails := total - success
-	ts := &crtype.ReportTestStats{
-		BaseStats: &crtype.TestDetailsReleaseStats{
+	ts := &testdetails.ReportTestStats{
+		BaseStats: &testdetails.ReleaseStats{
 			Release: baseRelease.Release,
 			Start:   baseRelease.Start,
 			End:     baseRelease.End,

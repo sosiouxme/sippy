@@ -12,6 +12,7 @@ import (
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/bq"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/requestoptions"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/test"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/testdetails"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
 	"github.com/openshift/sippy/pkg/db"
 	"github.com/openshift/sippy/pkg/db/models"
@@ -77,7 +78,7 @@ func (r *RegressionTracker) ensureRegressionsLoaded() error {
 	return nil
 }
 
-func (r *RegressionTracker) PreAnalysis(testKey tier1.ReportTestIdentification, testStats *crtype.ReportTestStats) error {
+func (r *RegressionTracker) PreAnalysis(testKey tier1.ReportTestIdentification, testStats *testdetails.ReportTestStats) error {
 	if len(r.openRegressions) > 0 {
 		view := r.openRegressions[0].View // grab view from first regression, they were queried only for sample release
 		or := FindOpenRegression(view, testKey.TestID, testKey.Variants, r.openRegressions)
@@ -101,7 +102,7 @@ func (r *RegressionTracker) PreAnalysis(testKey tier1.ReportTestIdentification, 
 }
 
 // PostAnalysis adjusts status code (and thus icons) based on the triaged state of open regressions.
-func (r *RegressionTracker) PostAnalysis(testKey tier1.ReportTestIdentification, testStats *crtype.ReportTestStats) error {
+func (r *RegressionTracker) PostAnalysis(testKey tier1.ReportTestIdentification, testStats *testdetails.ReportTestStats) error {
 	if testStats.ReportStatus > tier1.SignificantTriagedRegression {
 		// no need to adjust status for triage if this is no longer a regression
 		return nil

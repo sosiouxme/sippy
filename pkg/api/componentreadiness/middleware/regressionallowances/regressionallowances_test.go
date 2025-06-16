@@ -5,9 +5,9 @@ import (
 	"reflect"
 	"testing"
 
-	crtype "github.com/openshift/sippy/pkg/apis/api/componentreport"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/requestoptions"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/test"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/testdetails"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
 	"github.com/openshift/sippy/pkg/regressionallowances"
 	"github.com/stretchr/testify/assert"
@@ -88,8 +88,8 @@ func Test_PreAnalysis(t *testing.T) {
 		testKey          tier1.ReportTestIdentification
 		reqOpts          requestoptions.RequestOptions
 		regressionGetter func(releaseString string, variant tier1.ColumnIdentification, testID string) *regressionallowances.IntentionalRegression
-		testStatus       *crtype.ReportTestStats
-		expectedStatus   *crtype.ReportTestStats
+		testStatus       *testdetails.ReportTestStats
+		expectedStatus   *testdetails.ReportTestStats
 	}{
 		{
 			name:             "swap base stats using regression allowance",
@@ -161,10 +161,10 @@ func maskFLOPError(f1, f2 *float64) {
 	}
 }
 
-func buildTestStatus(total, success, flake int, baseRelease string) *crtype.ReportTestStats {
+func buildTestStatus(total, success, flake int, baseRelease string) *testdetails.ReportTestStats {
 	fails := total - success - flake
-	ts := &crtype.ReportTestStats{
-		BaseStats: &crtype.TestDetailsReleaseStats{
+	ts := &testdetails.ReportTestStats{
+		BaseStats: &testdetails.ReleaseStats{
 			Release: baseRelease,
 			Stats: test.Stats{
 				FailureCount: fails,
@@ -178,13 +178,13 @@ func buildTestStatus(total, success, flake int, baseRelease string) *crtype.Repo
 }
 
 //nolint:unparam
-func buildTestStatus2(total, success, flake int, baseRelease, sampleRelease string, regressed int, pityAdjust, passRateAdjust float64) *crtype.ReportTestStats {
+func buildTestStatus2(total, success, flake int, baseRelease, sampleRelease string, regressed int, pityAdjust, passRateAdjust float64) *testdetails.ReportTestStats {
 	fails := total - success - flake
 	ts := buildTestStatus(total, success, flake, baseRelease) // set up the base stats as before
 
 	fails += regressed // set up sample stats as base with regressed included
 	success -= regressed
-	ts.SampleStats = crtype.TestDetailsReleaseStats{
+	ts.SampleStats = testdetails.ReleaseStats{
 		Release: sampleRelease,
 		Stats: test.Stats{
 			FailureCount: fails,

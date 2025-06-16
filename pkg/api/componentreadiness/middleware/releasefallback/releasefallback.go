@@ -14,6 +14,7 @@ import (
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/bq"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/requestoptions"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/test"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/testdetails"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
 	log "github.com/sirupsen/logrus"
 
@@ -71,7 +72,7 @@ type ReleaseFallback struct {
 	baseOverrideMutex  sync.Mutex // Mutex to protect the map
 }
 
-func (r *ReleaseFallback) Analyze(testID string, variants map[string]string, report *crtype.ReportTestStats) error {
+func (r *ReleaseFallback) Analyze(testID string, variants map[string]string, report *testdetails.ReportTestStats) error {
 	return nil
 }
 
@@ -98,7 +99,7 @@ func (r *ReleaseFallback) Query(ctx context.Context, wg *sync.WaitGroup, allJobV
 
 // PreAnalysis looks for a better pass rate across our fallback releases for the given test stats.
 // It then swaps them out and leaves an explanation before handing back to the core for analysis.
-func (r *ReleaseFallback) PreAnalysis(testKey tier1.ReportTestIdentification, testStats *crtype.ReportTestStats) error {
+func (r *ReleaseFallback) PreAnalysis(testKey tier1.ReportTestIdentification, testStats *testdetails.ReportTestStats) error {
 	// Nothing to do for tests without a basis, i.e. new tests.
 	if testStats.BaseStats == nil {
 		return nil
@@ -157,7 +158,7 @@ func (r *ReleaseFallback) PreAnalysis(testKey tier1.ReportTestIdentification, te
 			if cTestStats.SuccessRate > basePassRate {
 				// We've found a better pass rate in a prior release with enough runs to qualify.
 				// Adjust the stats and keep looking for an even better one.
-				testStats.BaseStats = &crtype.TestDetailsReleaseStats{
+				testStats.BaseStats = &testdetails.ReleaseStats{
 					Release: priorRelease,
 					Start:   cachedReleaseTestStatuses.Start,
 					End:     cachedReleaseTestStatuses.End,
@@ -176,7 +177,7 @@ func (r *ReleaseFallback) PreAnalysis(testKey tier1.ReportTestIdentification, te
 	return nil
 }
 
-func (r *ReleaseFallback) PostAnalysis(testKey tier1.ReportTestIdentification, testStats *crtype.ReportTestStats) error {
+func (r *ReleaseFallback) PostAnalysis(testKey tier1.ReportTestIdentification, testStats *testdetails.ReportTestStats) error {
 	return nil
 }
 
@@ -312,7 +313,7 @@ func (r *ReleaseFallback) PreTestDetailsAnalysis(testKey test.KeyWithVariants, s
 	return nil
 }
 
-func (r *ReleaseFallback) TestDetailsAnalyze(report *crtype.ReportTestDetails) error {
+func (r *ReleaseFallback) TestDetailsAnalyze(report *testdetails.Report) error {
 	return nil
 }
 

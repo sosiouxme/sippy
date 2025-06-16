@@ -7,6 +7,7 @@ import (
 	crtype "github.com/openshift/sippy/pkg/apis/api/componentreport"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/bq"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/test"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/testdetails"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
 )
 
@@ -27,13 +28,13 @@ type Middleware interface {
 	// Implementations can alter base/sample data as needed, request confidence levels, and add explanations for
 	// what they did.
 	// NOTE: due to differences in test details reports, this function is not used there.
-	PreAnalysis(testKey tier1.ReportTestIdentification, testStats *crtype.ReportTestStats) error
+	PreAnalysis(testKey tier1.ReportTestIdentification, testStats *testdetails.ReportTestStats) error
 
 	// PostAnalysis gives middleware opportunity to adjust test analysis results in the report.
 	// Implementations can alter Status code and add explanations for what they did and why.
 	// Used in both ComponentReport and TestDetails. Both uses are OUTSIDE the normal caching of the report.
 	// This allows for cheap reloads with fresh triage data without having to do an expensive report recalculation.
-	PostAnalysis(testKey tier1.ReportTestIdentification, testStats *crtype.ReportTestStats) error
+	PostAnalysis(testKey tier1.ReportTestIdentification, testStats *testdetails.ReportTestStats) error
 
 	// PreTestDetailsAnalysis gives middleware the opportunity to adjust inputs to the report status
 	// prior to analysis.
