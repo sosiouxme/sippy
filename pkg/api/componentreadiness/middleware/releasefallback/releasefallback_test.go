@@ -88,8 +88,8 @@ func Test_PreAnalysis(t *testing.T) {
 		reqOpts          requestoptions.RequestOptions
 		testKey          tier1.ReportTestIdentification
 		fallbackReleases FallbackReleases
-		testStats        *testdetails.ReportTestStats
-		expectedStatus   *testdetails.ReportTestStats
+		testStats        *testdetails.TestComparison
+		expectedStatus   *testdetails.TestComparison
 	}{
 		{
 			name:    "fallback to prior release",
@@ -226,9 +226,9 @@ func buildTestStatus(testName string, variants []string, total, success, flake i
 	}
 }
 
-func buildTestStats(total, success int, baseRelease tier1.Release, explanations []string) *testdetails.ReportTestStats {
+func buildTestStats(total, success int, baseRelease tier1.Release, explanations []string) *testdetails.TestComparison {
 	fails := total - success
-	ts := &testdetails.ReportTestStats{
+	ts := &testdetails.TestComparison{
 		BaseStats: &testdetails.ReleaseStats{
 			Release: baseRelease.Release,
 			Start:   baseRelease.Start,

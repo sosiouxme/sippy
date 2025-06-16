@@ -528,7 +528,7 @@ func TestGenerateComponentReport(t *testing.T) {
 												Variants: awsAMD64OVNTest.Variants,
 											},
 										},
-										ReportTestStats: testdetails.ReportTestStats{
+										TestComparison: testdetails.TestComparison{
 											RequiredConfidence: 95,
 											Comparison:         tier1.FisherExact,
 											Explanations: []string{
@@ -570,7 +570,7 @@ func TestGenerateComponentReport(t *testing.T) {
 												Variants: awsAMD64OVN2Test.Variants,
 											},
 										},
-										ReportTestStats: testdetails.ReportTestStats{
+										TestComparison: testdetails.TestComparison{
 											RequiredConfidence: 95,
 											Comparison:         tier1.FisherExact,
 											Explanations: []string{
@@ -867,7 +867,7 @@ func TestGenerateComponentReport(t *testing.T) {
 												Variants: awsAMD64OVNTest.Variants,
 											},
 										},
-										ReportTestStats: testdetails.ReportTestStats{
+										TestComparison: testdetails.TestComparison{
 											RequiredConfidence: 90,
 											Comparison:         tier1.FisherExact,
 											Explanations: []string{
@@ -1096,7 +1096,7 @@ func TestGenerateComponentReport(t *testing.T) {
 												Variants: awsAMD64OVNTest.Variants,
 											},
 										},
-										ReportTestStats: testdetails.ReportTestStats{
+										TestComparison: testdetails.TestComparison{
 											RequiredConfidence: 95,
 											Comparison:         tier1.FisherExact,
 											Explanations: []string{
@@ -1138,7 +1138,7 @@ func TestGenerateComponentReport(t *testing.T) {
 												Variants: awsAMD64OVN2Test.Variants,
 											},
 										},
-										ReportTestStats: testdetails.ReportTestStats{
+										TestComparison: testdetails.TestComparison{
 											RequiredConfidence: 95,
 											Comparison:         tier1.FisherExact,
 											Explanations: []string{
@@ -1381,7 +1381,7 @@ func TestGenerateComponentTestDetailsReport(t *testing.T) {
 				},
 				Analyses: []testdetails.Analysis{
 					{
-						ReportTestStats: testdetails.ReportTestStats{
+						TestComparison: testdetails.TestComparison{
 							Comparison:   tier1.FisherExact,
 							SampleStats:  sampleReleaseStatsOneHigh,
 							BaseStats:    &baseReleaseStatsOneHigh,
@@ -1428,7 +1428,7 @@ func TestGenerateComponentTestDetailsReport(t *testing.T) {
 				},
 				Analyses: []testdetails.Analysis{
 					{
-						ReportTestStats: testdetails.ReportTestStats{
+						TestComparison: testdetails.TestComparison{
 							Comparison:   tier1.FisherExact,
 							SampleStats:  sampleReleaseStatsOneLow,
 							BaseStats:    &baseReleaseStatsOneHigh,
@@ -1476,7 +1476,7 @@ func TestGenerateComponentTestDetailsReport(t *testing.T) {
 				},
 				Analyses: []testdetails.Analysis{
 					{
-						ReportTestStats: testdetails.ReportTestStats{
+						TestComparison: testdetails.TestComparison{
 							Comparison:   tier1.FisherExact,
 							SampleStats:  sampleReleaseStatsOneHigh,
 							BaseStats:    &baseReleaseStatsOneLow,
@@ -1532,7 +1532,7 @@ func TestGenerateComponentTestDetailsReport(t *testing.T) {
 				},
 				Analyses: []testdetails.Analysis{
 					{
-						ReportTestStats: testdetails.ReportTestStats{
+						TestComparison: testdetails.TestComparison{
 							Comparison:   tier1.FisherExact,
 							SampleStats:  sampleReleaseStatsTwoHigh,
 							BaseStats:    &baseReleaseStatsTwoHigh,
@@ -1832,7 +1832,7 @@ func Test_componentReportGenerator_assessComponentStatus(t *testing.T) {
 			c.ReqOptions.AdvancedOption.PassRateRequiredAllTests = tt.requiredPassRateForAllTests
 			c.ReqOptions.AdvancedOption.MinimumFailure = tt.minFail
 
-			testAnalysis := &testdetails.ReportTestStats{
+			testAnalysis := &testdetails.TestComparison{
 				SampleStats: testdetails.ReleaseStats{
 					Stats: test.Stats{
 						SuccessCount: tt.sampleSuccess,

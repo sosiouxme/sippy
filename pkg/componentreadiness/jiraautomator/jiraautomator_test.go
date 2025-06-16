@@ -72,7 +72,7 @@ func TestGetComponentRegressedTestsFromReport(t *testing.T) {
 												Variants: awsAMD64OVNTest.Variants,
 											},
 										},
-										ReportTestStats: testdetails.ReportTestStats{
+										TestComparison: testdetails.TestComparison{
 											ReportStatus: tier1.ExtremeRegression,
 										},
 									},
@@ -91,7 +91,7 @@ func TestGetComponentRegressedTestsFromReport(t *testing.T) {
 												Variants: columnAzureAMD64OVN.Variants,
 											},
 										},
-										ReportTestStats: testdetails.ReportTestStats{
+										TestComparison: testdetails.TestComparison{
 											ReportStatus: tier1.ExtremeRegression,
 										},
 									},
@@ -122,7 +122,7 @@ func TestGetComponentRegressedTestsFromReport(t *testing.T) {
 												Variants: columnAzureAMD64OVN.Variants,
 											},
 										},
-										ReportTestStats: testdetails.ReportTestStats{
+										TestComparison: testdetails.TestComparison{
 											ReportStatus: tier1.ExtremeRegression,
 										},
 									},
@@ -143,7 +143,7 @@ func TestGetComponentRegressedTestsFromReport(t *testing.T) {
 								Variants: awsAMD64OVNTest.Variants,
 							},
 						},
-						ReportTestStats: testdetails.ReportTestStats{
+						TestComparison: testdetails.TestComparison{
 							ReportStatus: tier1.ExtremeRegression,
 						},
 					},
@@ -156,7 +156,7 @@ func TestGetComponentRegressedTestsFromReport(t *testing.T) {
 								Variants: columnAzureAMD64OVN.Variants,
 							},
 						},
-						ReportTestStats: testdetails.ReportTestStats{
+						TestComparison: testdetails.TestComparison{
 							ReportStatus: tier1.ExtremeRegression,
 						},
 					},
@@ -171,7 +171,7 @@ func TestGetComponentRegressedTestsFromReport(t *testing.T) {
 								Variants: columnAzureAMD64OVN.Variants,
 							},
 						},
-						ReportTestStats: testdetails.ReportTestStats{
+						TestComparison: testdetails.TestComparison{
 							ReportStatus: tier1.ExtremeRegression,
 						},
 					},
@@ -200,7 +200,7 @@ func TestGetComponentRegressedTestsFromReport(t *testing.T) {
 												Variants: awsAMD64OVNTest.Variants,
 											},
 										},
-										ReportTestStats: testdetails.ReportTestStats{
+										TestComparison: testdetails.TestComparison{
 											ReportStatus: tier1.ExtremeRegression,
 										},
 									},
@@ -219,7 +219,7 @@ func TestGetComponentRegressedTestsFromReport(t *testing.T) {
 												Variants: columnMetalAMD64OVN.Variants,
 											},
 										},
-										ReportTestStats: testdetails.ReportTestStats{
+										TestComparison: testdetails.TestComparison{
 											ReportStatus: tier1.ExtremeRegression,
 										},
 									},
@@ -250,7 +250,7 @@ func TestGetComponentRegressedTestsFromReport(t *testing.T) {
 												Variants: columnMetalAMD64OVN.Variants,
 											},
 										},
-										ReportTestStats: testdetails.ReportTestStats{
+										TestComparison: testdetails.TestComparison{
 											ReportStatus: tier1.ExtremeRegression,
 										},
 									},
@@ -271,7 +271,7 @@ func TestGetComponentRegressedTestsFromReport(t *testing.T) {
 								Variants: awsAMD64OVNTest.Variants,
 							},
 						},
-						ReportTestStats: testdetails.ReportTestStats{
+						TestComparison: testdetails.TestComparison{
 							ReportStatus: tier1.ExtremeRegression,
 						},
 					},
@@ -286,7 +286,7 @@ func TestGetComponentRegressedTestsFromReport(t *testing.T) {
 								Variants: columnMetalAMD64OVN.Variants,
 							},
 						},
-						ReportTestStats: testdetails.ReportTestStats{
+						TestComparison: testdetails.TestComparison{
 							ReportStatus: tier1.ExtremeRegression,
 						},
 					},
@@ -299,7 +299,7 @@ func TestGetComponentRegressedTestsFromReport(t *testing.T) {
 								Variants: columnMetalAMD64OVN.Variants,
 							},
 						},
-						ReportTestStats: testdetails.ReportTestStats{
+						TestComparison: testdetails.TestComparison{
 							ReportStatus: tier1.ExtremeRegression,
 						},
 					},

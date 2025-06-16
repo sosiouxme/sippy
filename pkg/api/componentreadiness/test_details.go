@@ -67,7 +67,7 @@ func (c *ComponentReportGenerator) PostAnalysisTestDetails(report *testdetails.R
 		ColumnIdentification: report.ColumnIdentification,
 	}
 	for i := range report.Analyses {
-		if err := c.middlewares.PostAnalysis(testKey, &report.Analyses[i].ReportTestStats); err != nil {
+		if err := c.middlewares.PostAnalysis(testKey, &report.Analyses[i].TestComparison); err != nil {
 			return err
 		}
 	}
@@ -472,7 +472,7 @@ func (c *ComponentReportGenerator) internalGenerateTestDetailsReport(
 
 	totalBase, totalSample, report, result, lastFailure := c.summarizeRecordedTestStats(baseStatus, sampleStatus, testKey)
 
-	testStats := testdetails.ReportTestStats{
+	testStats := testdetails.TestComparison{
 		RequiredConfidence: c.ReqOptions.AdvancedOption.Confidence,
 		SampleStats: testdetails.ReleaseStats{
 			Release: c.ReqOptions.SampleRelease.Release,
@@ -496,7 +496,7 @@ func (c *ComponentReportGenerator) internalGenerateTestDetailsReport(
 	}
 
 	c.assessComponentStatus(&testStats)
-	report.ReportTestStats = testStats
+	report.TestComparison = testStats
 	result.Analyses = []testdetails.Analysis{report}
 
 	return result

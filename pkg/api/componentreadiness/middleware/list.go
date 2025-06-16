@@ -27,7 +27,7 @@ func (l List) QueryTestDetails(ctx context.Context, wg *sync.WaitGroup, errCh ch
 	}
 }
 
-func (l List) PreAnalysis(testKey tier1.ReportTestIdentification, testStats *testdetails.ReportTestStats) error {
+func (l List) PreAnalysis(testKey tier1.ReportTestIdentification, testStats *testdetails.TestComparison) error {
 	for _, mw := range l {
 		if err := mw.PreAnalysis(testKey, testStats); err != nil {
 			return err
@@ -36,7 +36,7 @@ func (l List) PreAnalysis(testKey tier1.ReportTestIdentification, testStats *tes
 	return nil
 }
 
-func (l List) PostAnalysis(testKey tier1.ReportTestIdentification, testStats *testdetails.ReportTestStats) error {
+func (l List) PostAnalysis(testKey tier1.ReportTestIdentification, testStats *testdetails.TestComparison) error {
 	for _, mw := range l {
 		if err := mw.PostAnalysis(testKey, testStats); err != nil {
 			return err
