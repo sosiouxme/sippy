@@ -19,7 +19,6 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/openshift/sippy/pkg/api"
-	crtype "github.com/openshift/sippy/pkg/apis/api/componentreport"
 	"github.com/openshift/sippy/pkg/apis/cache"
 	bqcachedclient "github.com/openshift/sippy/pkg/bigquery"
 )
@@ -76,7 +75,7 @@ func (r *ReleaseFallback) Analyze(testID string, variants map[string]string, rep
 	return nil
 }
 
-func (r *ReleaseFallback) Query(ctx context.Context, wg *sync.WaitGroup, allJobVariants crtype.JobVariants,
+func (r *ReleaseFallback) Query(ctx context.Context, wg *sync.WaitGroup, allJobVariants tier1.JobVariants,
 	_, _ chan map[string]bq.TestStatus, errCh chan error) {
 	wg.Add(1)
 	go func() {
@@ -182,7 +181,7 @@ func (r *ReleaseFallback) PostAnalysis(testKey tier1.ReportTestIdentification, t
 }
 
 func (r *ReleaseFallback) getFallbackBaseQueryStatus(ctx context.Context,
-	allJobVariants crtype.JobVariants,
+	allJobVariants tier1.JobVariants,
 	release string, start, end time.Time) []error {
 	generator := newFallbackTestQueryReleasesGenerator(r.client, r.reqOptions, allJobVariants, release, start, end)
 
@@ -200,7 +199,7 @@ func (r *ReleaseFallback) getFallbackBaseQueryStatus(ctx context.Context,
 	return nil
 }
 
-func (r *ReleaseFallback) QueryTestDetails(ctx context.Context, wg *sync.WaitGroup, errCh chan error, allJobVariants crtype.JobVariants) {
+func (r *ReleaseFallback) QueryTestDetails(ctx context.Context, wg *sync.WaitGroup, errCh chan error, allJobVariants tier1.JobVariants) {
 	r.log.Infof("Querying fallback override test statuses for %d test ID options", len(r.reqOptions.TestIDOptions))
 
 	// Lookup all release dates, we're going to need them
@@ -322,7 +321,7 @@ func (r *ReleaseFallback) TestDetailsAnalyze(report *testdetails.Report) error {
 type fallbackTestQueryReleasesGenerator struct {
 	client                     *bqcachedclient.Client
 	cacheOption                cache.RequestOptions
-	allJobVariants             crtype.JobVariants
+	allJobVariants             tier1.JobVariants
 	BaseRelease                string
 	BaseStart                  time.Time
 	BaseEnd                    time.Time
@@ -334,7 +333,7 @@ type fallbackTestQueryReleasesGenerator struct {
 func newFallbackTestQueryReleasesGenerator(
 	client *bqcachedclient.Client,
 	reqOptions requestoptions.RequestOptions,
-	allJobVariants crtype.JobVariants,
+	allJobVariants tier1.JobVariants,
 	release string, start, end time.Time) fallbackTestQueryReleasesGenerator {
 
 	generator := fallbackTestQueryReleasesGenerator{
@@ -465,14 +464,14 @@ func (f *fallbackTestQueryReleasesGenerator) getTestFallbackRelease(ctx context.
 type fallbackTestQueryGenerator struct {
 	client      *bqcachedclient.Client
 	cacheOption cache.RequestOptions
-	allVariants crtype.JobVariants
+	allVariants tier1.JobVariants
 	BaseRelease string
 	BaseStart   time.Time
 	BaseEnd     time.Time
 	ReqOptions  requestoptions.RequestOptions
 }
 
-func newFallbackBaseQueryGenerator(client *bqcachedclient.Client, reqOptions requestoptions.RequestOptions, allVariants crtype.JobVariants,
+func newFallbackBaseQueryGenerator(client *bqcachedclient.Client, reqOptions requestoptions.RequestOptions, allVariants tier1.JobVariants,
 	baseRelease string, baseStart, baseEnd time.Time) fallbackTestQueryGenerator {
 	generator := fallbackTestQueryGenerator{
 		client:      client,

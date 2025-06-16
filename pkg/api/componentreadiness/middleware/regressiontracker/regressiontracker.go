@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/openshift/sippy/pkg/api/componentreadiness/middleware"
-	crtype "github.com/openshift/sippy/pkg/apis/api/componentreport"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/bq"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/requestoptions"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/test"
@@ -48,14 +47,14 @@ type RegressionTracker struct {
 	hasLoadedRegressions bool
 }
 
-func (r *RegressionTracker) Query(ctx context.Context, wg *sync.WaitGroup, allJobVariants crtype.JobVariants, baseStatusCh, sampleStatusCh chan map[string]bq.TestStatus, errCh chan error) {
+func (r *RegressionTracker) Query(ctx context.Context, wg *sync.WaitGroup, allJobVariants tier1.JobVariants, baseStatusCh, sampleStatusCh chan map[string]bq.TestStatus, errCh chan error) {
 	err := r.ensureRegressionsLoaded()
 	if err != nil {
 		errCh <- err
 	}
 }
 
-func (r *RegressionTracker) QueryTestDetails(ctx context.Context, wg *sync.WaitGroup, errCh chan error, allJobVariants crtype.JobVariants) {
+func (r *RegressionTracker) QueryTestDetails(ctx context.Context, wg *sync.WaitGroup, errCh chan error, allJobVariants tier1.JobVariants) {
 	err := r.ensureRegressionsLoaded()
 	if err != nil {
 		errCh <- err

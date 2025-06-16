@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openshift/sippy/pkg/apis/api/componentreport"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/requestoptions"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/view"
 	"github.com/openshift/sippy/pkg/apis/cache"
 	v2 "github.com/openshift/sippy/pkg/apis/config/v1"
@@ -34,7 +34,7 @@ func TestParseComponentReportRequest(t *testing.T) {
 		{Release: "4.15", Status: "", GADate: util.DatePtr(2024, 2, 28, 0, 0, 0, 0, time.UTC)},
 	}
 
-	allJobVariants := componentreport.JobVariants{Variants: map[string][]string{
+	allJobVariants := tier1.JobVariants{Variants: map[string][]string{
 		"Architecture": {"amd64", "arm64", "s390x", "ppc64le", "heterogeneous"},
 		"FeatureSet":   {"default", "techpreview"},
 		"Installer":    {"ipi", "upi"},

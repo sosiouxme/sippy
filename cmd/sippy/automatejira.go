@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/openshift/sippy/pkg/apis/api/componentreport"
+	"github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -72,7 +72,7 @@ func (f *AutomateJiraFlags) BindFlags(fs *pflag.FlagSet) {
 	fs.BoolVar(&f.DryRun, "dry-run", f.DryRun, "Print the tasks of automating jiras without real interaction with jira.")
 }
 
-func (f *AutomateJiraFlags) Validate(allVariants componentreport.JobVariants) error {
+func (f *AutomateJiraFlags) Validate(allVariants tier1.JobVariants) error {
 	if len(f.SippyURL) == 0 {
 		return fmt.Errorf("--sippy-url is required")
 	}

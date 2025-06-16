@@ -14,8 +14,6 @@ import (
 	"github.com/openshift/sippy/pkg/apis/api/componentreport/tier1"
 	"github.com/openshift/sippy/pkg/regressionallowances"
 	log "github.com/sirupsen/logrus"
-
-	crtype "github.com/openshift/sippy/pkg/apis/api/componentreport"
 )
 
 var _ middleware.Middleware = &RegressionAllowances{}
@@ -40,7 +38,7 @@ type RegressionAllowances struct {
 	regressionGetterFunc func(releaseString string, variant tier1.ColumnIdentification, testID string) *regressionallowances.IntentionalRegression
 }
 
-func (r *RegressionAllowances) Query(_ context.Context, _ *sync.WaitGroup, _ crtype.JobVariants,
+func (r *RegressionAllowances) Query(_ context.Context, _ *sync.WaitGroup, _ tier1.JobVariants,
 	_, _ chan map[string]bq.TestStatus, _ chan error) {
 	// unused
 }
@@ -148,7 +146,7 @@ func (r *RegressionAllowances) adjustAnalysisParameters(testStats *testdetails.T
 	}
 }
 
-func (r *RegressionAllowances) QueryTestDetails(ctx context.Context, wg *sync.WaitGroup, errCh chan error, allJobVariants crtype.JobVariants) {
+func (r *RegressionAllowances) QueryTestDetails(ctx context.Context, wg *sync.WaitGroup, errCh chan error, allJobVariants tier1.JobVariants) {
 }
 
 func (r *RegressionAllowances) PreTestDetailsAnalysis(testKey test.KeyWithVariants, status *bq.TestJobRunStatuses) error {

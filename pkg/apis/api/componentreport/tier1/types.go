@@ -51,3 +51,8 @@ func StringForStatus(s Status) string {
 	}
 	return "Unknown"
 }
+
+// JobVariants contains all variants supported in the system.
+type JobVariants struct {
+	Variants map[string][]string `json:"variants,omitempty"`
+}

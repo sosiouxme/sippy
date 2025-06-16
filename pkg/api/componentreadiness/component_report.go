@@ -94,14 +94,14 @@ func GetComponentTestVariantsFromBigQuery(ctx context.Context, client *bqcachedc
 		api.GetPrefixedCacheKey("TestVariants~", generator), generator.GenerateVariants, TestVariants{})
 }
 
-func GetJobVariantsFromBigQuery(ctx context.Context, client *bqcachedclient.Client) (crtype.JobVariants,
+func GetJobVariantsFromBigQuery(ctx context.Context, client *bqcachedclient.Client) (tier1.JobVariants,
 	[]error) {
 	generator := ComponentReportGenerator{
 		client: client,
 	}
 
-	return api.GetDataFromCacheOrGenerate[crtype.JobVariants](ctx, client.Cache, cache.RequestOptions{},
-		api.GetPrefixedCacheKey("TestAllVariants~", generator), generator.GenerateJobVariants, crtype.JobVariants{})
+	return api.GetDataFromCacheOrGenerate[tier1.JobVariants](ctx, client.Cache, cache.RequestOptions{},
+		api.GetPrefixedCacheKey("TestAllVariants~", generator), generator.GenerateJobVariants, tier1.JobVariants{})
 }
 
 func GetComponentReportFromBigQuery(
@@ -266,9 +266,9 @@ func (c *ComponentReportGenerator) GenerateVariants(ctx context.Context) (TestVa
 	}, errs
 }
 
-func (c *ComponentReportGenerator) GenerateJobVariants(ctx context.Context) (crtype.JobVariants, []error) {
+func (c *ComponentReportGenerator) GenerateJobVariants(ctx context.Context) (tier1.JobVariants, []error) {
 	errs := []error{}
-	variants := crtype.JobVariants{Variants: map[string][]string{}}
+	variants := tier1.JobVariants{Variants: map[string][]string{}}
 	queryString := fmt.Sprintf(`SELECT variant_name, ARRAY_AGG(DISTINCT variant_value ORDER BY variant_value) AS variant_values
 					FROM
 						%s.job_variants
@@ -366,7 +366,7 @@ func (c *ComponentReportGenerator) GenerateReport(ctx context.Context) (crtype.C
 
 // getBaseQueryStatus builds the basis query, executes it, and returns the basis test status.
 func (c *ComponentReportGenerator) getBaseQueryStatus(ctx context.Context,
-	allJobVariants crtype.JobVariants) (map[string]bq.TestStatus, []error) {
+	allJobVariants tier1.JobVariants) (map[string]bq.TestStatus, []error) {
 
 	generator := query.NewBaseQueryGenerator(c.client, c.ReqOptions, allJobVariants)
 
@@ -383,7 +383,7 @@ func (c *ComponentReportGenerator) getBaseQueryStatus(ctx context.Context,
 // getSampleQueryStatus builds the sample query, executes it, and returns the sample test status.
 func (c *ComponentReportGenerator) getSampleQueryStatus(
 	ctx context.Context,
-	allJobVariants crtype.JobVariants,
+	allJobVariants tier1.JobVariants,
 	includeVariants map[string][]string,
 	start, end time.Time,
 	junitTable string) (map[string]bq.TestStatus, []error) {
@@ -496,7 +496,7 @@ func (c *ComponentReportGenerator) getTestStatusFromBigQuery(ctx context.Context
 // fork additional sample queries for the overrides
 func (c *ComponentReportGenerator) goRunOverrideSampleQueries(
 	ctx context.Context, wg *sync.WaitGroup, fLog *log.Entry,
-	allJobVariants crtype.JobVariants,
+	allJobVariants tier1.JobVariants,
 	sampleStatusCh chan map[string]bq.TestStatus,
 	errCh chan error,
 ) {

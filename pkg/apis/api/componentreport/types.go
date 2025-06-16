@@ -28,8 +28,3 @@ type ReportTestSummary struct {
 	crtier1.ReportTestIdentification
 	testdetails.TestComparison
 }
-
-// JobVariants contains all variants supported in the system.
-type JobVariants struct {
-	Variants map[string][]string `json:"variants,omitempty"`
-}

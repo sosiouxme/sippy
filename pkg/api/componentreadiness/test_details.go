@@ -23,7 +23,6 @@ import (
 	"github.com/openshift/sippy/pkg/api"
 	"github.com/openshift/sippy/pkg/api/componentreadiness/query"
 	"github.com/openshift/sippy/pkg/api/componentreadiness/utils"
-	crtype "github.com/openshift/sippy/pkg/apis/api/componentreport"
 	configv1 "github.com/openshift/sippy/pkg/apis/config/v1"
 	v1 "github.com/openshift/sippy/pkg/apis/sippy/v1"
 	"github.com/openshift/sippy/pkg/bigquery"
@@ -256,7 +255,7 @@ func (c *ComponentReportGenerator) GenerateDetailsReportForTest(ctx context.Cont
 
 func (c *ComponentReportGenerator) getBaseJobRunTestStatus(
 	ctx context.Context,
-	allJobVariants crtype.JobVariants,
+	allJobVariants tier1.JobVariants,
 	baseRelease string,
 	baseStart time.Time,
 	baseEnd time.Time) (map[string][]bq.TestJobRunRows, []error) {
@@ -288,7 +287,7 @@ func (c *ComponentReportGenerator) getBaseJobRunTestStatus(
 
 func (c *ComponentReportGenerator) getSampleJobRunTestStatus(
 	ctx context.Context,
-	allJobVariants crtype.JobVariants,
+	allJobVariants tier1.JobVariants,
 	includeVariants map[string][]string,
 	start, end time.Time,
 	junitTable string) (map[string][]bq.TestJobRunRows, []error) {
